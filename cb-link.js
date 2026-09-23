@@ -3,7 +3,7 @@
    열쇠는 이 기기 브라우저에만 저장되며 서버로 따로 보내지 않는다. */
 (function () {
   'use strict';
-  var BUILD = "a8c1f4f458";
+  var BUILD = "0372a8f951";
   var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","ui.js"]};
   var KEY_STORE = 'cb:link-key';
   var me = document.currentScript;

@@ -8,7 +8,7 @@
   const actionLabels = { long: '롱 진입', short: '숏 진입', close: '청산', wait: '관망', cancel: '예약 취소' };
   const reasonLabels = { manual: '청산 예약', opposite_signal: '반대 신호 청산', take_profit: '익절', stop_loss: '손절', liquidation: '단순 모형 강제청산' };
   const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 세 조건 완성까지 보유 · 장기 보유 실험', tp_sl: '가격 TP / SL로 청산' };
-  function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(12, Math.round(n * base / 16)); }
+  function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(14, Math.round(n * base / 16)); }
   function applyFontSetting(font) { const f = ['M', 'L', 'XL'].includes(font) ? font : 'L'; const root = document.documentElement; if (!root || !root.dataset) return; if (root.dataset.font === f) return; root.dataset.font = f; if (state.snapshot) queueDraw(); if (state.month) drawEquity(); }
   const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'bothrs', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '' };
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -185,7 +185,7 @@
         const title = step.role === 'smart' ? 'Smart 시작' : step.role === 'premium' ? 'Premium 단계' : '교차 신호';
         return '<div><span class="evidence-order">' + (i+1) + '</span><span class="evidence-title">' + title + '</span><strong>' + escape(labels.join(' · ')) + '</strong><small>' + kst(step.availableAt) + ' 확인</small></div>';
       }).join('');
-      $('quiz-feedback').textContent = snapshot.pending && snapshot.pending.reason === 'opposite_signal' ? '반대 신호를 확인해 기존 포지션 청산이 자동 예약되었습니다. 관망을 선택하고 다음 봉에서 청산 결과를 확인하세요. 반대 방향으로 자동 재진입하지는 않습니다.' : snapshot.position ? '앞서 진입한 포지션을 보유 중입니다. 설정한 반대 신호가 나오면 자동 청산합니다. 이번 조건에서는 청산 예약 또는 관망을 선택하세요.' : '세 조건을 읽고 ' + (window.innerWidth>850?'오른쪽':'아래') + '에서 롱·숏·관망을 선택하세요. 선택한 다음부터 가격을 진행할 수 있습니다.';
+      $('quiz-feedback').textContent = snapshot.pending && snapshot.pending.reason === 'opposite_signal' ? '반대 신호를 확인해 기존 포지션 청산이 자동 예약되었습니다. 관망을 선택하고 다음 봉에서 청산 결과를 확인하세요. 반대 방향으로 자동 재진입하지는 않습니다.' : snapshot.position ? '앞서 진입한 포지션을 보유 중입니다. 설정한 반대 신호가 나오면 자동 청산합니다. 이번 조건에서는 청산 예약 또는 관망을 선택하세요.' : '세 조건을 읽고 ' + (window.innerWidth>1000?'오른쪽':'아래') + '에서 롱·숏·관망을 선택하세요. 선택한 다음부터 가격을 진행할 수 있습니다.';
       render(snapshot);
   }
   function nextCaseIndex() {
@@ -240,7 +240,7 @@
   function renderMonth() {
     const {result:r,mapping,unusable} = state.month, s=r.summary, settings=r.settings;
     $('month-results').hidden=false; $('month-empty').hidden=true;
-    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + (mapping==='bothrs'?'RS 교차 · 사용자 규칙':mapping==='rls'?'비교 연구 RL / RS':'비교 연구 Cross 진입') + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
+    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + (mapping==='bothrs'?'RS 교차 · 우리 연구 규칙':mapping==='rls'?'비교 연구 RL / RS':'비교 연구 Cross 진입') + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
     renderExitComparison();
     const items=[['최종 평가 자산',fmt(s.finalEquity)+' USDT','초기 '+fmt(s.initialBalance)+' USDT'],['누적 순손익',(s.netPnl>0?'+':'')+fmt(s.netPnl)+' USDT','계좌 수익률 '+fmt(s.returnPct)+'% · 미실현 포함'],['완료 거래',s.tradeCount+'회','진입 체결 '+s.filledCount+'회'],['실현 순손익',fmt(s.realizedPnl)+' USDT','청산을 마친 거래 · 수수료 반영'],['미실현 평가손익',fmt(s.unrealizedNetPnl)+' USDT','열린 포지션 · 진입 수수료 반영'],['총 수수료',fmt(s.fees)+' USDT','진입·청산 수수료 합계'],['최대 낙폭',fmt(s.maxDrawdownPct)+'%','마감 봉 평가 자산 기준'],['건너뛴 조건',s.skippedCount+'개','보유·대기·사용 불가 등']];
     $('month-stats').innerHTML=items.map(([title,value,note],i)=>'<div><span>'+title+'</span><strong'+(i===1?' class="'+(s.netPnl>=0?'positive':'negative')+'"':'')+'>'+value+'</strong><small>'+note+'</small></div>').join('');
@@ -461,12 +461,12 @@
       const cross = mapping === 'bothrs' ? { source: 'rls_signal', long: ['SRS'], short: ['SRS'] } : mapping === 'rls' ? { source: 'rls_signal', long: ['LRL'], short: ['SRS'] } : { source: 'cross_signal', long: ['L 진입'], short: ['S 진입'] };
       const result = window.GoyaSequence.evaluate(s.signals, s.cutoff, { group: 'none', availabilityDelaySeconds: HOUR, allowSameStartBar: false, cross });
       active = result.cycles.length ? result.cycles[result.cycles.length - 1] : null;
-      $('rule-hint').textContent = mapping === 'bothrs' ? '롱·숏 모두 RS를 교차로 보는 사용자 규칙입니다. Premium 단계와 RS의 순서는 바뀌어도 됩니다.' : '비교 연구용 대응입니다. 기본 사용자 규칙과 다르며 원 지표 제공자의 공식 규칙으로 확인된 대응은 아닙니다.';
+      $('rule-hint').textContent = mapping === 'bothrs' ? '롱·숏 모두 RS를 교차로 보는 우리 연구 규칙입니다. Premium 단계와 RS의 순서는 바뀌어도 됩니다.' : '비교 연구용 대응입니다. 기본 우리 연구 규칙과 다르며 원 지표 제공자의 공식 규칙으로 확인된 대응은 아닙니다.';
     } else $('rule-hint').textContent = 'RS/RL과 별도 Cross는 다른 자료입니다. 기준을 고르기 전에는 완성 여부를 판정하지 않습니다.';
     const valid = active && active.direction !== 'ambiguous';
     const facts = valid ? [active.smart && active.smart[0], active.premium, active.cross] : [];
     if (valid) {
-      const isLong = active.direction === 'long'; names[0] = 'Smart ' + (isLong ? 'LL · 롱 시작' : 'SS · 숏 시작'); names[1] = 'Premium ' + (isLong ? 'L2 또는 L3' : 'S2 또는 S3'); names[2] = mapping === 'bothrs' ? 'RS 교차 · 사용자 규칙' : mapping === 'rls' ? 'Premium ' + (isLong ? 'RL' : 'RS') : 'Cross ' + (isLong ? 'L 진입' : 'S 진입');
+      const isLong = active.direction === 'long'; names[0] = 'Smart ' + (isLong ? 'LL · 롱 시작' : 'SS · 숏 시작'); names[1] = 'Premium ' + (isLong ? 'L2 또는 L3' : 'S2 또는 S3'); names[2] = mapping === 'bothrs' ? 'RS 교차 · 우리 연구 규칙' : mapping === 'rls' ? 'Premium ' + (isLong ? 'RL' : 'RS') : 'Cross ' + (isLong ? 'L 진입' : 'S 진입');
     }
     $('rule-steps').innerHTML = names.map((name, i) => {
       const fact = facts[i], label = fact && fact.evidence ? fact.evidence.map(e => e.label).join(' · ') : '';
@@ -545,17 +545,20 @@
     const s = state.snapshot;
     if (!s) { $('chart-signal-key').innerHTML=''; $('focus-case').disabled=true; return; }
     const steps = chartSteps(), bars = focusBars(s, steps); if (!bars.length) return;
-    const mobile = width < 500, left = mobile ? 13 : 22, right = mobile ? 66 : 90, top = steps.length ? 112 : 30, bottom = height - 39, plotW = width - left - right;
+    const mobile = width < 500, left = mobile ? 13 : 22, top = steps.length ? 112 : 30, bottom = height - 39;
     const firstTime = bars[0].time, lastTime = bars[bars.length - 1].time, span = Math.max(HOUR, lastTime - firstTime + HOUR);
-    const x = time => left + ((time - firstTime + HOUR / 2) / span) * plotW;
     let low = Math.min(...bars.map(b => b.l)), high = Math.max(...bars.map(b => b.h));
     if ($('show-goya').checked) bars.forEach(b => { if (Number.isFinite(b.goya) && b.goya > 0) { low = Math.min(low, b.goya); high = Math.max(high, b.goya); } });
     const pad = Math.max((high - low) * .23, high * .004); low -= pad; high += pad;
+    ctx.font = uiPx(mobile ? 10 : 11) + 'px "Malgun Gothic",sans-serif';
+    const priceMeasure = typeof ctx.measureText === 'function' ? ctx.measureText(price(high)) : null;
+    const right = Math.max(mobile ? 66 : 90, Math.ceil(((priceMeasure && priceMeasure.width) || 0) + 16)), plotW = width - left - right;
+    const x = time => left + ((time - firstTime + HOUR / 2) / span) * plotW;
     const y = value => bottom - (value - low) / (high - low) * (bottom - top);
     state.chart = { bars, x, y, left, right, firstTime, span, width, height, plotW, bottom, steps };
     $('focus-case').disabled = !steps.length;
     $('focus-case').setAttribute('aria-pressed', String(!!state.fitCase));
-    $('chart-signal-key').innerHTML = steps.map(step => '<div class="signal-key-item"><b style="color:'+step.color+'">'+step.number+' · '+escape(step.label)+(step.role==='cross'?' · 교차':'')+'</b><span>표시 봉 '+kst(step.time)+' KST</span><span>확인 '+kst(step.availableAt)+' KST</span></div>').join('') || '<p>완성 조건이 나타나면 해당 세 신호 위치를 함께 강조합니다.</p>';
+    $('chart-signal-key').innerHTML = steps.map(step => '<div class="signal-key-item"><b style="color:'+step.color+'">'+step.number+' · '+escape(step.label)+(step.role==='cross'?' · 교차':'')+'</b><span>표시 봉 '+kst(step.time)+'&nbsp;KST</span><span>확인 '+kst(step.availableAt)+'&nbsp;KST</span></div>').join('') || '<p>완성 조건이 나타나면 해당 세 신호 위치를 함께 강조합니다.</p>';
     canvas.setAttribute('aria-label', '실제 1시간봉. '+(steps.length ? steps.map(step => step.number+'번 '+step.label+' 표시 봉 '+kst(step.time,true)+' KST, 확인 '+kst(step.availableAt,true)+' KST').join('. ') : '확인한 과거 신호를 표시합니다.')+'. 미래 신호는 숨겨져 있습니다.');
     ctx.font = uiPx(mobile ? 10 : 11) + 'px "Malgun Gothic",sans-serif'; ctx.textBaseline = 'middle';
     for (let tick = 0; tick <= 5; tick++) {
@@ -563,11 +566,18 @@
       ctx.strokeStyle = '#2a404d'; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(width - right, yy); ctx.stroke();
       ctx.fillStyle = '#9eb3bd'; ctx.textAlign = 'left'; ctx.fillText(price(value), width - right + 8, yy, right-10);
     }
-    for (let tick = 0; tick < (mobile ? 3 : 5); tick++) {
-      const divisions = mobile ? 2 : 4, index = Math.round((bars.length - 1) * tick / divisions), b = bars[index], xx = x(b.time);
-      ctx.strokeStyle = '#243b47'; ctx.beginPath(); ctx.moveTo(xx, top); ctx.lineTo(xx, bottom); ctx.stroke();
-      ctx.fillStyle = '#9eb3bd'; ctx.textAlign = tick === 0 ? 'left' : tick === divisions ? 'right' : 'center'; ctx.fillText(kst(b.time), xx, height - 15);
-    }
+    // 시간축 글자: 실제 글자 폭으로 겹침을 확인해 눈금 수를 줄인다(큰 글씨·좁은 차트에서 글자가 붙지 않게).
+    const measured = typeof ctx.measureText === 'function' ? ctx.measureText('00-00 00:00') : null, labelW = (measured && measured.width) || 72, GAP = 16;
+    const box = (xx, al) => al === 'left' ? [xx, xx + labelW] : al === 'right' ? [xx - labelW, xx] : [xx - labelW / 2, xx + labelW / 2];
+    const layout = div => Array.from({ length: div + 1 }, (_, t) => { const b = bars[Math.round((bars.length - 1) * t / div)], al = t === 0 ? 'left' : t === div ? 'right' : 'center'; return { b, xx: x(b.time), al }; });
+    const fits = ts => ts.every((tk, i) => !i || box(tk.xx, tk.al)[0] - box(ts[i - 1].xx, ts[i - 1].al)[1] >= GAP);
+    let division = Math.min(mobile ? 2 : 4, Math.max(1, Math.floor(plotW / (labelW * 1.5 + GAP))));
+    while (division > 1 && !fits(layout(division))) division--;
+    let ticks = layout(division); if (!fits(ticks)) ticks = [ticks[ticks.length - 1]];
+    ticks.forEach(tk => {
+      ctx.strokeStyle = '#243b47'; ctx.beginPath(); ctx.moveTo(tk.xx, top); ctx.lineTo(tk.xx, bottom); ctx.stroke();
+      ctx.fillStyle = '#9eb3bd'; ctx.textAlign = tk.al; ctx.fillText(kst(tk.b.time), tk.xx, height - 15);
+    });
     const candleW = Math.max(1, Math.min(9, plotW * HOUR / span * .65));
     bars.forEach((b, i) => {
       const xx = x(b.time), color = b.c >= b.o ? '#ef6966' : '#65aaf0'; ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1;
@@ -610,9 +620,12 @@
       const gap=7,cardW=(width-left-12-gap*2)/3,cardX=left+index*(cardW+gap),cardY=8,cardH=72;
       ctx.fillStyle='#203743';ctx.fillRect(cardX,cardY,cardW,cardH);ctx.strokeStyle=step.color;ctx.lineWidth=1;ctx.strokeRect(cardX,cardY,cardW,cardH);
       ctx.fillStyle=step.color;ctx.font='bold '+uiPx(mobile?12:13)+'px "Malgun Gothic",sans-serif';ctx.textAlign='left';ctx.fillText(step.number+'  '+step.label,cardX+8,cardY+17,cardW-14);
-      ctx.fillStyle='#d1dce0';ctx.font=uiPx(mobile?9:10)+'px "Malgun Gothic",sans-serif';ctx.fillText(kst(step.time),cardX+8,cardY+39,cardW-14);
+      ctx.fillStyle='#d1dce0';ctx.font=uiPx(mobile?9:10)+'px "Malgun Gothic",sans-serif';
+      const stamp=kst(step.time).split(' ');
+      if (mobile) { ctx.fillText(stamp[0],cardX+8,cardY+39,cardW-14); ctx.fillText(barMap.has(step.time)?stamp[1]:'범위 밖',cardX+8,cardY+58,cardW-14); }
+      else ctx.fillText(kst(step.time),cardX+8,cardY+39,cardW-14);
       const visible=barMap.has(step.time);
-      ctx.fillStyle='#a1b8be';ctx.fillText(visible ? (step.role==='cross'?'교차 신호 · 표시 봉':step.role==='smart'?'Smart · 표시 봉':'Premium · 표시 봉') : '확대 범위 밖 · 함께 보기',cardX+8,cardY+58,cardW-14);
+      if (!mobile) ctx.fillStyle='#a1b8be', ctx.fillText(visible ? (step.role==='cross'?'교차 신호 · 표시 봉':step.role==='smart'?'Smart · 표시 봉':'Premium · 표시 봉') : '확대 범위 밖 · 함께 보기',cardX+8,cardY+58,cardW-14);
       if (!visible) return;
       const b=barMap.get(step.time), xx=x(step.time), mark={cross:step.role==='cross',long:step.direction==='long',color:step.color};
       const yy=anchor(mark,b);

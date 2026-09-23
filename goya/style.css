@@ -26,3 +26,80 @@
 .question-actions{gap:.5rem;max-width:100%}
 .question-actions .button{min-height:2.75rem;white-space:normal;line-height:1.5}
 @media(max-width:35rem){.question-actions{width:100%}.question-actions .button{flex:1 1 100%;width:100%;min-height:3rem;font-size:.875rem}}
+/* ================================================================
+   기기 대응 (2026-09 반응형 점검) — 파일 맨 끝에 두고 [G1]~[G6] 순서를 지킨다.
+   - 글자는 rem(html[data-font]가 크기를 정함). 이 블록은 글자 크기를 새로 정하지 않는다.
+   - 미디어쿼리 폭은 iframe 폭이다(부모 #goya-host 폭 - 좌우 24px, 창 600px 이하는 여백 0).
+     iframe 높이는 내용만큼 늘어나므로 orientation·height 조건은 쓰지 않는다. 손가락 기기는 pointer로 판정한다.
+   - 폭 원칙: iframe 1000px 이하면 차트 전폭 + 판단 패널은 차트 아래 두 칸, 그보다 넓으면 차트 옆 판단 패널.
+   ================================================================ */
+
+/* [G1] 부모 앱 안(embedded)에서는 상단바와 겹치는 큰 제목을 줄인다(h1은 화면 읽기용으로 남김) */
+body.embedded .page-header { margin-bottom: 12px; }
+body.embedded .page-header .eyebrow, body.embedded .steps { display: none; }
+body.embedded .page-header h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+body.embedded .intro { margin-top: 0; }
+
+
+/* [G2] 손가락으로 다루는 차트 조작줄 — 44px 이상 */
+@media (pointer: coarse), (any-pointer: coarse), (max-width: 1080px) {
+  .chart-filters { gap: 6px 16px; }
+  .chart-filters label { min-height: 44px; padding-inline: 4px; gap: 8px; }
+  .chart-filters input { width: 1.3em; height: 1.3em; }
+  .chart-controls #focus-case { min-height: 48px; padding: 8px 14px; }
+  .zoom-label { min-height: 44px; }
+  .zoom-label input[type=range] { width: clamp(110px, 9em, 40vw); min-height: 44px; }
+  .text-button { min-height: 44px; }
+  /* 확대 슬라이더 손잡이 28px(모양을 새로 그림) */
+  .zoom-label input[type=range] { -webkit-appearance: none; appearance: none; height: 44px; padding: 0; border: 0; background: transparent; }
+  .zoom-label input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: #4d6873; }
+  .zoom-label input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; box-sizing: border-box; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%; background: #94b6b0; border: 2px solid #e9eeed; }
+  .zoom-label input[type=range]::-moz-range-track { height: 6px; border-radius: 3px; background: #4d6873; }
+  .zoom-label input[type=range]::-moz-range-thumb { box-sizing: border-box; width: 28px; height: 28px; border-radius: 50%; background: #94b6b0; border: 2px solid #e9eeed; }
+}
+
+
+/* [G3] 연습 설정(iframe 561~1200) — 긴 '포지션 정리 기준' 문구가 반쪽 칸에서 잘리지 않게 한 줄 전체 */
+@media (min-width: 561px) and (max-width: 1200px) {
+  .setup .ticker-label, .setup .exit-label { grid-column: 1 / -1; }
+  .setup:has(#date-label:not([hidden])) .ticker-label { grid-column: auto; }
+}
+
+
+/* [G4] 질문 카드(iframe 561~1080) — 설명은 한 줄 전체, 진행 버튼은 그 아래에 가지런히 */
+@media (min-width: 561px) and (max-width: 1080px) {
+  .question-top { flex-wrap: wrap; align-items: flex-start; }
+  .question-top > div:first-child { flex: 1 1 100%; }
+  .question-actions { width: 100%; justify-content: flex-start; }
+  .question-actions .button { flex: 1 1 12em; }
+}
+
+
+/* [G5] iframe 851~1000(폴드 펼침 860·가로 폰 891·탭 울트라 세로 900) — 차트 전폭, 판단은 아래 두 칸.
+   ui.js 안내문의 '오른쪽/아래' 기준(innerWidth>850)도 1000으로 함께 바꾼다. */
+@media (min-width: 851px) and (max-width: 1000px) {
+  .workspace { grid-template-columns: 1fr; }
+  .decision { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  .decision > .section-title, .decision > .account, .decision > .position, .decision > .pending, .decision > .note-label, .decision > .trade-actions, .decision > .secondary-actions, .decision > .text-button, .decision > .order-note { grid-column: 1; }
+  .rule-block { grid-column: 2; grid-row: 1 / 12; border-top: 0; border-left: 1px solid var(--line); padding: 0 0 0 24px; margin: 0; }
+  .account { padding-top: 15px; }
+  .playback span { flex-basis: auto; margin-left: auto; }
+}
+
+
+/* [G6] 좁은 iframe */
+@media (max-width: 560px) {
+  .chart-controls { gap: 10px 12px; }
+  .zoom-label { flex: 1 1 100%; margin-left: 0; justify-content: flex-start; }
+  .zoom-label input[type=range] { flex: 1 1 auto; width: auto; min-width: 0; }
+  .chart-signal-key { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .signal-key-item span { overflow-wrap: normal; }
+  .settings-row label { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; white-space: normal; }
+  thead th { white-space: nowrap; }
+  thead th:first-child { width: auto; }
+}
+@media (max-width: 400px) {
+  .mode-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  .mode-tab { padding: 9px 8px; }
+  .mode-tab.minor { grid-column: 1 / -1; margin-left: 0; }
+}

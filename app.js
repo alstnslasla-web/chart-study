@@ -44,16 +44,19 @@
   const FIG = {
     'candles': 'candle-basics', 'trendline': 'trend-candles', 'draw-lines': 'practice-candles', 'channels': 'chart-structures',
     'support': 'chart-structures', 'triangles': 'triangle-candles', 'volume-profile': 'volume-profile', 'golden-cross': 'golden-cross',
-    'bollinger': 'bollinger', 'rsi': 'rsi-candles', 'macd': 'macd-candles', 'divergence': 'divergence-types', 'elliott': 'elliott-candles'
+    'bollinger': 'bollinger', 'rsi': 'rsi-candles', 'macd': 'macd-candles', 'divergence': 'divergence-types', 'elliott': 'elliott-candles',
+    'goya-markers': 'goya-markers', 'goya-three-conditions': 'goya-three-conditions', 'goya-entry-exit': 'goya-exit-modes', 'goya-practice-app': 'goya-practice-screen-a'
   };
+  const FIG_EXTRA = { 'goya-practice-app': ['goya-practice-screen-b'] };
   const FIG_CAPTION = {
     'candle-basics': '양봉과 음봉의 네 가격', 'trend-candles': 'A·B·C 저점을 잇는 추세선과 평행 채널', 'practice-candles': '선을 직접 그어 보는 연습 캔들',
     'chart-structures': '추세선 · 채널 · 삼각수렴 · 거짓 돌파', 'triangle-candles': '고점은 낮아지고 저점은 높아지는 삼각수렴', 'volume-profile': '시간별 거래량과 가격별 매물대',
     'golden-cross': '짧은 평균선이 긴 평균선 위로(후행성)', 'bollinger': '볼린저밴드의 좁은 폭과 넓은 폭', 'rsi-candles': 'RSI 70 위에서도 가격은 더 오를 수 있음',
-    'macd-candles': 'MACD선 · 신호선 · 막대(차이)', 'divergence-types': '일반·히든 다이버전스 네 가지', 'elliott-candles': '엘리엇파동 1~5와 A·B·C'
+    'macd-candles': 'MACD선 · 신호선 · 막대(차이)', 'divergence-types': '일반·히든 다이버전스 네 가지', 'elliott-candles': '엘리엇파동 1~5와 A·B·C',
+    'goya-markers': '학습용 가상 그림입니다. RS·RL 화살표는 원본 화면 모양이며, 앱에서는 둘 다 봉 위 노란 마름모입니다. L2는 원본에서도 봉 아래 초록 화살표지만 이 그림에서는 글자 상자로만 표시했고, 분홍 선은 1시간봉 24개 평균선과 거의 같은 선입니다.', 'goya-three-conditions': '학습용 가상 그림입니다. 위는 롱, 아래는 숏입니다. ① Smart가 먼저 나오고, ② Premium과 ③ RS는 순서와 상관없이 모이면 완성입니다. 진입을 고르면 다음 봉 시가에 모의 체결됩니다.', 'goya-exit-modes': '학습용 가상 그림입니다. 같은 롱 진입에서 ①과 ②가 언제 정리되는지 비교하세요. ①은 반대 SS가 보인 다음 봉 시가에 정리하고, ②는 반대 세 조건이 완성될 때까지 들고 있습니다.', 'goya-practice-screen-a': '앱 화면 예시(휴대폰). ① 연습 방식 탭 ② 연습할 코인 ③ 세 신호 카드 ⑤ 롱·숏·관망 고르기 ⑥ 진행 버튼. 보관된 과거 시세를 모의로 재생한 화면입니다.', 'goya-practice-screen-b': '앱 화면 예시(휴대폰). ④ 차트와 “세 신호 함께 보기”. 차트 위 상자의 시각은 봉이 시작한 시각이라 카드의 확인 시각보다 한 시간 이릅니다.'
   };
   const IMG = (name) => window.CHART_ASSETS["assets/" + name + ".webp"];
-  const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화'];
+  const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화', '4부 · 우리 지표 연습'];
 
   // ---------- 상태 ----------
   const S = {
@@ -84,7 +87,7 @@
     const q = [];
     COURSE.forEach((L, i) => {
       if (L.quiz && Array.isArray(L.quiz.options)) {
-        q.push({ id: 'c:' + L.id, lesson: L.id, lessonNo: i + 1, difficulty: 1, question: L.quiz.question, options: L.quiz.options, answer: L.quiz.answer, explanation: L.quiz.explanation || '', image: FIG[L.id] || '' });
+        q.push({ id: 'c:' + L.id, lesson: L.id, lessonNo: i + 1, difficulty: 1, question: L.quiz.question, options: L.quiz.options, answer: L.quiz.answer, explanation: L.quiz.explanation || '', image: (L.level || '').startsWith('4부') ? '' : (FIG[L.id] || '') });
       }
     });
     (window.QUIZ_EXTRA || []).forEach((x, k) => {
@@ -126,6 +129,7 @@
     const cur = order.indexOf(S.settings.font || 'L');
     S.settings.font = order[(cur + 1) % order.length];
     document.documentElement.dataset.font = S.settings.font; save();
+    if (location.hash.startsWith('#sim-example')) requestAnimationFrame(drawSim);
     const goyaFrame = document.getElementById('goya-practice-frame');
     if (goyaFrame && goyaFrame.contentWindow) goyaFrame.contentWindow.postMessage({ type: 'cb-font', font: S.settings.font }, location.protocol === 'file:' ? '*' : location.origin);
     toast({ M: '글자: 보통', L: '글자: 크게', XL: '글자: 아주 크게' }[S.settings.font]);
@@ -266,7 +270,7 @@
     PARTS.forEach((p, pi) => {
       const items = COURSE.map((L, i) => ({ L, i })).filter(({ L }) => partOf(L) === pi);
       if (!items.length) return;
-      out += `<h2 class="part-head">${esc(p)}${pi === 2 ? ' <span class="badge">나중에 읽어도 됨</span>' : ''}</h2><ul class="lesson-list">`;
+      out += `<h2 class="part-head">${esc(p)}${pi === 2 ? ' <span class="badge">나중에 읽어도 됨</span>' : ''}${pi === 3 ? ' <span class="badge">모의연습과 함께</span>' : ''}</h2><ul class="lesson-list">`;
       items.forEach(({ L, i }) => {
         out += `<li><a class="lesson-item ${S.done[L.id] ? 'done' : ''}" href="#lesson/${esc(L.id)}"><span class="num">${S.done[L.id] ? '✓' : pad2(i + 1)}</span><span><div class="t">${esc(L.title)}</div><div class="s">${esc(L.subtitle || '')}${FIG[L.id] ? ' · 🖼 그림' : ''}</div></span><span class="chev">›</span></a></li>`;
       });
@@ -277,7 +281,8 @@
 
   function figureHtml(name, extraCaption) {
     if (!name) return '';
-    return `<figure class="figure"><img src="${IMG(name)}" alt="${esc(FIG_CAPTION[name] || name)}" loading="lazy" data-zoom="${IMG(name)}"><figcaption><span>${esc(extraCaption || FIG_CAPTION[name] || '')} · 학습용 가상 그림</span><button class="zoom-btn" type="button" data-zoom="${IMG(name)}">🔍 크게</button></figcaption></figure>`;
+    const capText = extraCaption || FIG_CAPTION[name] || '';
+    return `<figure class="figure"><img src="${IMG(name)}" alt="${esc(FIG_CAPTION[name] || name)}" loading="lazy" data-zoom="${IMG(name)}"><figcaption><span>${esc(capText)}${/학습용 가상|앱 화면 예시/.test(capText) ? '' : ' · 학습용 가상 그림'}</span><button class="zoom-btn" type="button" data-zoom="${IMG(name)}">🔍 크게</button></figcaption></figure>`;
   }
 
   function renderLesson(id) {
@@ -292,11 +297,13 @@
       <h2 class="page-title">${esc(L.title)}</h2>
       <p class="muted">${esc(L.subtitle || '')}</p>
       ${figureHtml(FIG[id])}
+      ${(FIG_EXTRA[id] || []).map((name) => figureHtml(name)).join('')}
       ${['read-chart', 'trendline', 'plan-exits'].includes(id) ? timeframeTeaser() : ''}
       ${(L.objectives || []).length ? `<div class="card"><h2>이 강에서 익힐 것</h2><ul>${L.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}
       ${(L.sections || []).map((s) => `<div class="card section-card"><h2>${esc(s.heading)}</h2><p>${esc(s.body)}</p></div>`).join('')}
       ${(L.checklist || []).length ? `<div class="card"><h2>스스로 확인하기</h2><ul class="check-list">${L.checklist.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
-      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary><ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul></details>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
+      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary><ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
+      ${partOf(L) === 3 ? '<a class="big-btn" href="#sim">📈 지표 모의연습에서 직접 해보기</a>' : ''}
       <a class="big-btn accent" href="#quiz/play?mode=lesson&id=${esc(id)}">🎯 이 강 문제 풀기 (${qN}문제)</a>
       <button class="big-btn ${S.done[id] ? 'ok' : 'secondary'}" type="button" data-act="done">${S.done[id] ? '✓ 다 읽었어요 (완료)' : '다 읽었어요'}</button>
       <div class="row">
@@ -473,7 +480,7 @@
 
   function renderQuestion() {
     const q = Q.list[Q.idx];
-    setTop(`${Q.label} ${Q.idx + 1}/${Q.list.length}`, Q.mode === 'lesson' ? `#lesson/${Q.lessonId}` : '#quiz');
+    setTop(`${Q.idx + 1}/${Q.list.length} · ${Q.label}`, Q.mode === 'lesson' ? `#lesson/${Q.lessonId}` : '#quiz');
     const L = lessonOf(q.lesson);
     const keys = ['①', '②', '③', '④'];
     view.innerHTML = html`
@@ -572,14 +579,22 @@
 
   // ---------- 영문·한글 짝그림과 설명 번호 ----------
   function biWrap(text, width = 245, size = 18) {
-    const result = []; let line = '', used = 0;
-    for (const char of String(text || '')) {
-      const unit = /[\u1100-\u11ff\u2e80-\ua4cf\uac00-\ud7af]/.test(char) ? size : /[MW@%]/.test(char) ? size * .85 : /[il.,' :]/.test(char) ? size * .32 : size * .57;
-      if (char === '\n' || (used + unit > width && line)) { result.push(line.trim()); line = ''; used = 0; }
-      if (char !== '\n') { line += char; used += unit; }
-    }
-    if (line.trim()) result.push(line.trim());
-    return result.length ? result : [''];
+    const unit = (c) => /[\u1100-\u11ff\u2e80-\ua4cf\uac00-\ud7af]/.test(c) ? size : /[MW@%]/.test(c) ? size * .85 : /[il.,' :]/.test(c) ? size * .32 : size * .57;
+    const measure = (t) => { let w = 0; for (const c of t) w += unit(c); return w; };
+    const result = [];
+    String(text || '').split('\n').forEach((para) => {
+      let line = '';
+      for (const word of (para.match(/\S+/g) || [])) {
+        const next = line ? line + ' ' + word : word;
+        if (measure(next) <= width) { line = next; continue; }
+        if (line) result.push(line);
+        line = '';
+        for (const ch of word) { if (line && measure(line + ch) > width) { result.push(line); line = ''; } line += ch; }
+      }
+      result.push(line);
+    });
+    while (result.length > 1 && !result[result.length - 1]) result.pop();
+    return result;
   }
   function biText(text, x, y, width, size, color = '#eaecef', weight = 400) {
     return `<text x="${x}" y="${y}" fill="${color}" font-size="${size}" font-weight="${weight}">${biWrap(text, width, size).map((line, i) => `<tspan x="${x}" dy="${i ? size * 1.35 : 0}">${esc(line)}</tspan>`).join('')}</text>`;
@@ -637,7 +652,7 @@
     const guide = s.bilingual;
     if (!guide?.actions?.length) { root.innerHTML = '<div class="notice">영한 화면 자료를 불러오지 못했습니다. 자료를 확인해 주세요.</div>'; return; }
     let current = 0;
-    root.innerHTML = `<section class="card bi-guide"><h2>영문 화면과 한글 풀이</h2><p class="small-print"><strong>학습용 모형 · 실제 캡처 아님.</strong> 번호를 누르면 해당 위치로 이동합니다. 왼쪽 영문과 오른쪽 한글을 비교하세요.</p><details class="bi-how"><summary>그림과 번호 보는 법</summary><p>번호는 아래 ‘이렇게 합니다’와 같습니다. 번호를 누르면 필요한 화면과 위치가 함께 바뀝니다. 여러 화면에 걸친 과정은 나누어 보여 줍니다. 위치는 이 모형의 기준이며 현재 앱과 다를 수 있습니다. 오른쪽은 설명용 번역으로, 실제 한국어 앱 제공을 뜻하지 않습니다.</p></details><div class="bi-number-list" role="group" aria-label="설명 번호 선택">${guide.actions.map((a,i)=>`<button type="button" data-bi-number="${i}" aria-pressed="${i===0}" aria-label="${i+1}번 설명 위치 보기">${i+1}</button>`).join('')}</div><div id="bi-current" class="bi-current" role="status" tabindex="-1"></div><div class="bi-modes" role="group" aria-label="그림 보기 방식"><button type="button" data-bi-mode="both" aria-pressed="true">나란히</button><button type="button" data-bi-mode="en" aria-pressed="false">영문만</button><button type="button" data-bi-mode="ko" aria-pressed="false">한글만</button></div><p class="small-print">작은 화면에서는 그림을 좌우로 밀거나 ‘영문만·한글만’으로 보세요. ‘크게 보기’로 더 확대할 수 있습니다. 점선 상자는 교재 안내이며 실제 앱 문구가 아닙니다.</p><div class="bi-compare-scroll" role="region" aria-label="영문 왼쪽, 한글 오른쪽 비교 그림. 작은 화면에서는 좌우로 밀어 보세요." tabindex="0"><div id="bi-pair" class="bi-pair" data-mode="both"></div></div><div id="bi-location" class="bi-location"></div><div class="step-nav"><button class="big-btn secondary" type="button" data-bi-nav="-1">‹ 이전 번호</button><button class="big-btn secondary" type="button" data-bi-nav="1">다음 번호 ›</button></div><p class="small-print">위쪽 ${Number(s.id)}단계는 전체 안내 순서, 그림의 1~${guide.actions.length}번은 이 단계 안의 설명 순서입니다. 노란 테두리와 같은 번호를 양쪽에서 비교하세요.</p></section>`;
+    root.innerHTML = `<section class="card bi-guide"><h2>영문 화면과 한글 풀이</h2><p class="small-print"><strong>학습용 모형 · 실제 캡처 아님.</strong> 번호를 누르면 해당 위치로 이동합니다. 영문 그림과 한글 풀이를 비교하세요.</p><details class="bi-how"><summary>그림과 번호 보는 법</summary><p>번호는 아래 ‘이렇게 합니다’와 같습니다. 번호를 누르면 필요한 화면과 위치가 함께 바뀝니다. 여러 화면에 걸친 과정은 나누어 보여 줍니다. 위치는 이 모형의 기준이며 현재 앱과 다를 수 있습니다. 한글 그림은 설명용 번역으로, 실제 한국어 앱 제공을 뜻하지 않습니다.</p></details><div class="bi-number-list" role="group" aria-label="설명 번호 선택">${guide.actions.map((a,i)=>`<button type="button" data-bi-number="${i}" aria-pressed="${i===0}" aria-label="${i+1}번 설명 위치 보기">${i+1}</button>`).join('')}</div><div id="bi-current" class="bi-current" role="status" tabindex="-1"></div><div class="bi-modes" role="group" aria-label="그림 보기 방식"><button type="button" data-bi-mode="both" aria-pressed="true">둘 다</button><button type="button" data-bi-mode="en" aria-pressed="false">영문만</button><button type="button" data-bi-mode="ko" aria-pressed="false">한글만</button></div><p class="small-print">작은 화면에서는 영문 그림 아래에 한글 풀이가 이어집니다. ‘영문만·한글만’으로 한 장씩 볼 수도 있습니다. ‘크게 보기’로 더 확대할 수 있습니다. 점선 상자는 교재 안내이며 실제 앱 문구가 아닙니다.</p><div class="bi-compare-scroll" role="region" aria-label="영문과 한글 비교 그림. 넓은 화면은 좌우, 작은 화면은 위아래로 놓입니다." tabindex="0"><div id="bi-pair" class="bi-pair" data-mode="both"></div></div><div id="bi-location" class="bi-location"></div><div class="step-nav"><button class="big-btn secondary" type="button" data-bi-nav="-1">‹ 이전 번호</button><button class="big-btn secondary" type="button" data-bi-nav="1">다음 번호 ›</button></div><p class="small-print">위쪽 ${Number(s.id)}단계는 전체 안내 순서, 그림의 1~${guide.actions.length}번은 이 단계 안의 설명 순서입니다. 노란 테두리와 같은 번호를 양쪽에서 비교하세요.</p></section>`;
     const show = (index, scroll = false) => {
       if (!Number.isInteger(index) || index < 0 || index >= guide.actions.length) return;
       current = index;
@@ -858,7 +873,11 @@
     const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const gr = r.getContext('2d'); gr.setTransform(dpr, 0, 0, dpr, 0, 0);
     const start = SIM.cut - WIN, endVis = SIM.cut + (SIM.phase === 'decide' ? 0 : SIM.reveal);
-    const total = WIN + FUT; const padL = 8, padR = 52, padT = 10, padB = 8;
+    const total = WIN + FUT; const padL = 8, padT = 10, padB = 8;
+    const fsz = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs')) || 20;
+    const fpx = Math.max(14, Math.round(fsz * .72));
+    g.font = fpx + 'px sans-serif';
+    const padR = Math.ceil(g.measureText('0000.0').width) + 12;
     const bw = (W - padL - padR) / total;
     const vis = SIM.series.slice(start, endVis);
     let lo = Math.min(...vis.map((b) => b.l)), hi = Math.max(...vis.map((b) => b.h));
@@ -868,12 +887,12 @@
     const x = (i) => padL + (i - start) * bw + bw / 2;
     g.clearRect(0, 0, W, H); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
     // 눈금
-    g.strokeStyle = '#eef1f3'; g.fillStyle = '#6b7780'; g.font = '12px sans-serif'; g.textAlign = 'left';
+    g.strokeStyle = '#eef1f3'; g.fillStyle = '#6b7780'; g.font = fpx + 'px sans-serif'; g.textAlign = 'left';
     for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; const yy = y(v); g.beginPath(); g.moveTo(padL, yy); g.lineTo(W - padR, yy); g.stroke(); g.fillText(v.toFixed(1), W - padR + 4, yy + 4); }
     // 미래 영역
     g.fillStyle = '#f3f5f7'; g.fillRect(x(SIM.cut) - bw / 2, padT, W - padR - (x(SIM.cut) - bw / 2), H - padT - padB);
     g.strokeStyle = '#9aa5ad'; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(x(SIM.cut) - bw / 2, padT); g.lineTo(x(SIM.cut) - bw / 2, H - padB); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#4a5a63'; g.font = 'bold 12px sans-serif'; g.textAlign = 'right'; g.fillText('지금 →', x(SIM.cut) - bw / 2 - 4, padT + 12);
+    g.fillStyle = '#4a5a63'; g.font = 'bold ' + fpx + 'px sans-serif'; g.textAlign = 'right'; g.fillText('지금 →', x(SIM.cut) - bw / 2 - 4, padT + 12);
     // EMA
     const line = (arr, col) => { g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); let first = true; for (let i = start; i < endVis; i++) { const v = arr[i]; if (v == null) continue; if (first) { g.moveTo(x(i), y(v)); first = false; } else g.lineTo(x(i), y(v)); } g.stroke(); g.lineWidth = 1; };
     line(SIM.ef, '#1a73e8'); line(SIM.es, '#f28c28');
@@ -886,13 +905,13 @@
     }
     // TP/SL/진입
     if (SIM.choice && SIM.choice !== 'wait') {
-      const hl = (v, col, label) => { g.strokeStyle = col; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(x(SIM.cut - 1), y(v)); g.lineTo(W - padR, y(v)); g.stroke(); g.setLineDash([]); g.fillStyle = col; g.font = 'bold 12px sans-serif'; g.textAlign = 'right'; g.fillText(label, W - padR - 4, y(v) - 3); };
+      const hl = (v, col, label) => { g.strokeStyle = col; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(x(SIM.cut - 1), y(v)); g.lineTo(W - padR, y(v)); g.stroke(); g.setLineDash([]); g.fillStyle = col; g.font = 'bold ' + fpx + 'px sans-serif'; g.textAlign = 'right'; g.fillText(label, W - padR - 4, y(v) - 3); };
       hl(SIM.tp, '#1e8e3e', 'TP'); hl(SIM.sl, '#c5221f', 'SL'); hl(SIM.entry, '#4a5a63', '진입');
     }
     // RSI
     gr.clearRect(0, 0, RW, RH); gr.fillStyle = '#fff'; gr.fillRect(0, 0, RW, RH);
     const ry = (v) => 6 + (RH - 12) * (1 - v / 100);
-    [30, 50, 70].forEach((lv) => { gr.strokeStyle = lv === 50 ? '#d8dfe3' : '#e9c4c4'; gr.setLineDash([3, 3]); gr.beginPath(); gr.moveTo(padL, ry(lv)); gr.lineTo(RW - padR, ry(lv)); gr.stroke(); gr.setLineDash([]); gr.fillStyle = '#6b7780'; gr.font = '11px sans-serif'; gr.textAlign = 'left'; gr.fillText('RSI ' + lv, RW - padR + 4, ry(lv) + 4); });
+    [30, 50, 70].forEach((lv) => { gr.strokeStyle = lv === 50 ? '#d8dfe3' : '#e9c4c4'; gr.setLineDash([3, 3]); gr.beginPath(); gr.moveTo(padL, ry(lv)); gr.lineTo(RW - padR, ry(lv)); gr.stroke(); gr.setLineDash([]); gr.fillStyle = '#6b7780'; gr.font = Math.max(14, fpx - 1) + 'px sans-serif'; gr.textAlign = 'left'; gr.fillText(String(lv), RW - padR + 4, ry(lv) + 5); });
     gr.strokeStyle = '#0f4c5c'; gr.lineWidth = 2; gr.beginPath(); let f = true;
     for (let i = start; i < endVis; i++) { const v = SIM.rs[i]; if (v == null) continue; if (f) { gr.moveTo(x(i), ry(v)); f = false; } else gr.lineTo(x(i), ry(v)); }
     gr.stroke();
@@ -916,7 +935,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924team1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev4' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
