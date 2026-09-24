@@ -2,6 +2,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const STORE_KEY = 'cb:goya-sim:v1';
+  const MONTH_KEY = 'cb:goya-sim:v1:monthly'; // 한 달 전략 결과 전용. STORE_KEY 는 연습 요약(부모 앱 홈 카드가 decisionCount·tradeCount 를 읽음)만 담는다.
   const RUN_KEY = 'cb:goya-sim:v1:run';
   const MAX_ACTIONS = 20000;
   const HOUR = 3600;
@@ -251,7 +252,7 @@
     $('month-result-note').textContent='세 조건 완성 '+(state.scenarios?state.scenarios.completions.length:'—')+'개 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족으로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
     $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+kst(t.entryAt)+' →<br>'+kst(t.exitAt)+'</td><td>'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배<br><small>'+escape(tradeReason(t))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉: 손절 우선</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
     drawEquity();
-    try { localStorage.setItem(STORE_KEY,JSON.stringify({version:1,mode:'monthly',ticker:r.ticker,mapping,settings,summary:s,coverage:r.coverage,savedAt:state.month.generatedAt})); } catch(_){}
+    try { localStorage.setItem(MONTH_KEY,JSON.stringify({version:1,mode:'monthly',ticker:r.ticker,mapping,settings,summary:s,coverage:r.coverage,savedAt:state.month.generatedAt})); } catch(_){}
   }
   function renderExitComparison() {
     const list = state.month.comparison, first = list[0], second = list[1];
@@ -276,12 +277,19 @@
     if(!state.month||state.mode!=='month')return;
     const canvas=$('equity-chart'),ctx=canvas.getContext('2d'),points=state.month.result.equityCurve;if(!ctx||!points.length)return;
     const width=Math.max(280,canvas.getBoundingClientRect().width),height=230,dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
-    const pad={l:14,r:80,t:18,b:35},pw=width-pad.l-pad.r,ph=height-pad.t-pad.b;let lo=Math.min(...points.map(p=>p.equity)),hi=Math.max(...points.map(p=>p.equity));const extra=Math.max((hi-lo)*.2,1);lo-=extra;hi+=extra;
-    const x=i=>pad.l+i/Math.max(points.length-1,1)*pw,y=value=>pad.t+(hi-value)/(hi-lo)*ph;
+    const pad={l:14,r:80,t:18,b:35},ph=height-pad.t-pad.b;let lo=Math.min(...points.map(p=>p.equity)),hi=Math.max(...points.map(p=>p.equity));const extra=Math.max((hi-lo)*.2,1);lo-=extra;hi+=extra;
     ctx.font=uiPx(11)+'px "Malgun Gothic",sans-serif';ctx.textBaseline='middle';
-    for(let i=0;i<4;i++){const value=lo+(hi-lo)*i/3,yy=y(value);ctx.strokeStyle='#e0e4d9';ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(width-pad.r,yy);ctx.stroke();ctx.fillStyle='#596970';ctx.fillText(fmt(value),width-pad.r+9,yy);}
+    // 오른쪽 여백: 큰 글씨(XL)에서 '10,220.43' 같은 축 라벨 끝이 잘리지 않게 실제 글자 폭으로 잡는다(테스트 스텁은 measureText 가 undefined 를 돌려줄 수 있음).
+    const textW=text=>{const m=typeof ctx.measureText==='function'?ctx.measureText(text):null;return (m&&m.width)||0;};
+    const labels=[0,1,2,3].map(i=>fmt(lo+(hi-lo)*i/3)),labelW=labels.reduce((w,text)=>Math.max(w,textW(text)),0);
+    pad.r=Math.max(80,Math.ceil(labelW+17));
+    const pw=width-pad.l-pad.r;
+    const x=i=>pad.l+i/Math.max(points.length-1,1)*pw,y=value=>pad.t+(hi-value)/(hi-lo)*ph;
+    for(let i=0;i<4;i++){const yy=y(lo+(hi-lo)*i/3);ctx.strokeStyle='#e0e4d9';ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(width-pad.r,yy);ctx.stroke();ctx.fillStyle='#596970';ctx.fillText(labels[i],width-pad.r+9,yy);}
     ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(x(i),y(p.equity)):ctx.moveTo(x(i),y(p.equity)));ctx.strokeStyle='#17645c';ctx.lineWidth=2;ctx.stroke();ctx.lineTo(x(points.length-1),height-pad.b);ctx.lineTo(x(0),height-pad.b);ctx.closePath();ctx.fillStyle='rgba(23,100,92,.08)';ctx.fill();
-    ctx.fillStyle='#596970';ctx.fillText(kst(points[0].time),pad.l,height-13);ctx.textAlign='right';ctx.fillText(kst(points[points.length-1].time),width-pad.r,height-13);
+    // 아래 날짜 두 개: 좁은 화면·큰 글씨에서 겹치면 끝 날짜를 오른쪽 끝(축 라벨 칸 아래 빈 곳)으로 옮기고, 그래도 겹치면 끝 날짜를 생략한다.
+    const firstDate=kst(points[0].time),lastDate=kst(points[points.length-1].time),firstEnd=pad.l+textW(firstDate)+8;let lastX=width-pad.r;if(firstEnd>lastX-textW(lastDate))lastX=width-8;
+    ctx.fillStyle='#596970';ctx.fillText(firstDate,pad.l,height-13);ctx.textAlign='right';if(firstEnd<=lastX-textW(lastDate))ctx.fillText(lastDate,lastX,height-13);
   }
   function exportMonth() {
     if(!state.month)return;
@@ -295,9 +303,64 @@
     rows[rows.length-1].push(r.settings.exitMode,'','','');
     state.month.comparison.forEach(item=>rows.push(['청산방식비교',r.ticker,'',kst(item.coverage.from,true),kst(item.coverage.to,true),item.settings.leverage,'','','','',item.summary.fees,item.summary.netPnl,'실현 '+item.summary.realizedPnl+' / 미실현 '+item.summary.unrealizedNetPnl,'미청산 포함 최종평가 / 과거 기간 비교',item.settings.exitMode,'','','']));
     rows.forEach((row,index)=>{if(index && row.length<15){while(row.length<14)row.push('');row.push(r.settings.exitMode,'','','');}});
-    downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+r.settings.leverage+'배_'+r.settings.exitMode+'.csv');
+    downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+r.settings.leverage+'배_'+r.settings.exitMode+'.csv',$('export-month'),'');
   }
-  function downloadRows(rows,name){function cell(v){let text=String(v==null?'':v);if(/^[=+@\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  function csvText(rows){function cell(v){let text=String(v==null?'':v);if(/^[=+@\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}return '\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n');}
+  function blobDownload(name,text){const blob=new Blob([text],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  // 앱(WebView) 안에서는 window.cbSave 로 네이티브에 저장을 맡기고 같은 id 의 응답을 기다린다. 브라우저에서는 blob 내려받기.
+  const SAVE_TIMEOUT_MS = 15000, SAVE_LATE_MS = 5 * 60 * 1000;
+  const pendingSaves = new Map();
+  let saveSeq = 0, saveBridge = null;
+  function nativeSaveBridge() { const bridge = window.cbSave; return bridge && typeof bridge.postMessage === 'function' ? bridge : null; }
+  function saveResult(ok, native, fileName, message) { return { ok: !!ok, native: !!native, fileName: fileName || '', message: message || '' }; }
+  function onNativeSaveReply(event) {
+    let reply = null;
+    try { reply = JSON.parse(typeof event.data === 'string' ? event.data : ''); } catch (_) { return; }
+    if (!reply || typeof reply.id !== 'string') return;
+    const pending = pendingSaves.get(reply.id);
+    if (!pending) return;
+    pendingSaves.delete(reply.id); clearTimeout(pending.timer);
+    const result = saveResult(reply.ok === true, true, typeof reply.fileName === 'string' ? reply.fileName : '', typeof reply.message === 'string' ? reply.message : '');
+    // 시간 초과 뒤 늦게 온 응답(옛 기기의 저장 위치 선택 화면)도 결과 문구로 알린다.
+    if (pending.late) notify(result.message || (result.ok ? '파일을 저장했어요.' : '파일을 저장하지 못했어요.'), result.ok ? 'success' : 'error');
+    else pending.done(result);
+  }
+  function listenNativeSaves(bridge) {
+    if (bridge === saveBridge) return;
+    saveBridge = bridge;
+    if (typeof bridge.addEventListener === 'function') bridge.addEventListener('message', onNativeSaveReply); else bridge.onmessage = onNativeSaveReply;
+  }
+  function inAndroidApp() { return typeof navigator !== 'undefined' && /ChartBaeumteoApp\//.test(navigator.userAgent || ''); }
+  function saveTextFile(name, text, done) {
+    done = typeof done === 'function' ? done : () => {};
+    const bridge = nativeSaveBridge();
+    // 앱(APK) 안인데 저장 통로가 없으면(아주 오래된 WebView) 내려받기가 조용히 막히므로, 성공처럼 보이지 않게 바로 알린다.
+    if (!bridge && inAndroidApp()) { done(saveResult(false, true, '', '이 휴대폰의 앱에서는 파일 저장이 안 돼요. 결과는 화면에서 확인해 주세요.')); return; }
+    if (!bridge) { blobDownload(name, text); done(saveResult(true, false, name, '')); return; }
+    listenNativeSaves(bridge);
+    const id = 'cb-save-' + Date.now() + '-' + (++saveSeq);
+    const pending = { done, late: false, timer: 0 };
+    pending.timer = setTimeout(() => {
+      pending.late = true; pending.timer = setTimeout(() => pendingSaves.delete(id), SAVE_LATE_MS);
+      done(saveResult(false, true, '', '저장 결과를 받지 못했어요. 저장 화면이 열려 있으면 마저 진행하고, 아니면 잠시 뒤 다시 눌러 주세요.'));
+    }, SAVE_TIMEOUT_MS);
+    pendingSaves.set(id, pending);
+    try { bridge.postMessage(JSON.stringify({ id, name, mime: 'text/csv', text })); }
+    catch (_) { pendingSaves.delete(id); clearTimeout(pending.timer); done(saveResult(false, true, '', '앱에 저장 요청을 보내지 못했어요.')); }
+  }
+  // 저장 버튼을 잠근 채 저장하고, 결과에 따라 안내한다. successText 는 blob 저장 때 종전 문구, 네이티브 저장 때는 앱 응답 문구와 함께 보인다.
+  function downloadRows(rows, name, button, successText) {
+    if (state.saving) return;
+    state.saving = true; if (button) button.disabled = true;
+    saveTextFile(name, csvText(rows), result => {
+      state.saving = false;
+      if (button) button.disabled = button.id === 'export' ? exportDisabled() : false;
+      if (!result.ok) notify(result.message || '파일을 저장하지 못했어요.', 'error');
+      else if (result.native) notify(result.message || '파일을 저장했어요.', 'success');
+      else if (successText) notify(successText, 'success');
+    });
+  }
+  function exportDisabled() { const s = state.snapshot || (state.engine && state.engine.snapshot && state.engine.snapshot()); return !s || (!s.decisions.length && !s.trades.length && !s.position); }
   function notify(text, kind) { $('status').textContent = text + (state.runWarning ? ' ' + state.runWarning : ''); $('status').className = 'status' + (kind ? ' ' + kind : ''); }
   function stop() { if (state.timer) clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ 자동 진행'; $('play').setAttribute('aria-pressed', 'false'); }
   function safeRun(fn) { try { return fn(); } catch (error) { stop(); notify(error.message || '연습 중 오류가 발생했습니다.', 'error'); return null; } }
@@ -446,7 +509,7 @@
     $('next-ticker').disabled = !canMoveTicker();
     $('next-ticker').title = p ? '보유 포지션을 정리한 뒤 이동할 수 있습니다' : s.pending ? '대기 주문이 처리된 뒤 이동할 수 있습니다' : '';
     $('finish-month').disabled = s.finished || !state.answered;
-    $('export').disabled = !s.decisions.length && !s.trades.length && !p;
+    $('export').disabled = state.saving || exportDisabled();
     $('order-note').innerHTML = '증거금 ' + fmt(s.settings.allocationPct, 1) + '% · 레버리지 ' + s.settings.leverage + '배<br>' + escape(exitDescription(s.settings)) + '<br>반대 신호 확인 뒤 다음 봉 시가 청산 · 자동 전환 없음';
     if (p) $('position-state').innerHTML += '<small>증거금 ' + fmt(p.margin) + ' / 명목금액 ' + fmt(p.notional) + ' USDT</small>';
     $('progress').textContent = (s.index + 1) + ' / ' + state.data.bars.length + '봉 확인';
@@ -504,10 +567,7 @@
     if (s.position) { const p = s.position; rows.push(['미청산', s.ticker, kst(p.entryAt, true), p.side, p.entryPrice, '', p.qty, p.entryFee, '', '', '평가손익 ' + p.unrealizedPnl + ' USDT / 실제 청산 아님', $('cross-mapping').value || '미선택', '봉 시가']); }
     rows.push(['요약', s.ticker, kst(s.cutoff, true), '', '', '', '', '', '', s.stats.netPnl, '평가자산 ' + s.equity + ' / 초기'+s.settings.initialBalance+' / 증거금' + s.settings.allocationPct + '% / 레버리지' + s.settings.leverage + ' / 수수료편도4bps / 슬리피지편도2bps / TP' + s.settings.takeProfitPct + '% / SL' + s.settings.stopLossPct + '%', $('cross-mapping').value || '미선택', '']);
     rows.forEach((row,index) => { if (index && row.length < 14) { while(row.length < 13)row.push(''); row.push(s.settings.exitMode,'','',''); } });
-    function cell(v) { let text = String(v == null ? '' : v); if (/^[=+@\t\r]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; }
-    const blob = new Blob(['\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '지표모의연습_' + s.ticker + '_' + s.settings.exitMode + '_' + kst(s.cutoff, true).replace(/[- :]/g, '') + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify('판단·완료 거래·미청산 상태·계산 가정을 CSV로 저장했습니다.', 'success');
+    downloadRows(rows, '지표모의연습_' + s.ticker + '_' + s.settings.exitMode + '_' + kst(s.cutoff, true).replace(/[- :]/g, '') + '.csv', $('export'), '판단·완료 거래·미청산 상태·계산 가정을 CSV로 저장했습니다.');
   }
   function signalLabel(event) {
     if (event.source === 'ut_signal2' && (event.signal === 'L' || event.signal === 'S')) return { label: event.signal === 'L' ? 'LL' : 'SS', long: event.signal === 'L', lane: 0 };
@@ -671,6 +731,8 @@
     const catalog = window.GOYA_SIM_CATALOG;
     if (!catalog || !catalog.symbols || !catalog.symbols.length || !window.GoyaSimEngine || !window.GoyaScenarios) { notify('실행 파일 또는 데이터 목록이 없습니다. 전체 learning-sim 폴더를 함께 열어 주세요.', 'error'); return; }
     try { state.saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (_) {}
+    // 예전 빌드가 STORE_KEY 에 넣어 둔 한 달 결과는 MONTH_KEY 로 옮긴다. STORE_KEY 는 연습 요약만 담아야 부모 앱 홈 카드가 판단 횟수를 읽는다.
+    if (state.saved && state.saved.mode === 'monthly') { try { if (!localStorage.getItem(MONTH_KEY)) localStorage.setItem(MONTH_KEY, JSON.stringify(state.saved)); localStorage.removeItem(STORE_KEY); } catch (_) {} state.saved = null; }
     let run = null, warning = '';
     try { run = readSavedRun(); } catch (_) { removeSavedRun(); warning = '이전 연습 기록을 읽지 못해 지우고 새로 시작합니다.'; }
     if (run) { $('cross-mapping').value = run.mapping; state.mode = run.mode; }

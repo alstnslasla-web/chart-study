@@ -396,13 +396,28 @@
   }
 
   // ---------- 그림 확대 ----------
+  // 확대 창을 열 때 같은 주소로 history 항목을 하나 넣어 둔다. 그러면 휴대폰 뒤로 버튼(popstate)이
+  // 강의 밖으로 나가는 대신 확대 창만 닫는다. 닫기 버튼·Esc 는 history.back() 으로 그 항목을 지운다.
   let zoomReturnFocus = null;
+  let zoomClosing = false;
+  let zoomBackPending = false; // 닫기 버튼이 보낸 history.back() 이 아직 도착하지 않음
+  const zoomIsOpen = () => $('#modal-root').childElementCount > 0;
+  const hasZoomState = () => !!(history.state && history.state.cbZoom);
   function closeZoom(restoreFocus = true) {
     const root = $('#modal-root');
+    zoomClosing = false;
     root.innerHTML = ''; root.onclick = null; root.onkeydown = null;
     $('#app').inert = false; document.body.style.overflow = '';
     if (restoreFocus && zoomReturnFocus?.isConnected) zoomReturnFocus.focus();
     zoomReturnFocus = null;
+  }
+  // 닫기 버튼·Esc: 넣어 둔 history 항목이 있으면 뒤로 가서 지운다(popstate 가 닫음). 없으면 바로 닫는다.
+  function dismissZoom() {
+    if (zoomClosing) return;
+    if (!hasZoomState()) { closeZoom(); return; }
+    zoomClosing = true; zoomBackPending = true;
+    history.back();
+    setTimeout(() => { if (zoomClosing && zoomIsOpen()) closeZoom(); }, 400); // popstate 가 안 오는 예외 상황 대비
   }
   function openZoom(src, alt) {
     const root = $('#modal-root');
@@ -411,14 +426,16 @@
     root.innerHTML = `<div class="modal-bg" role="dialog" aria-modal="true" aria-label="학습 그림 확대"><div class="modal-top"><button type="button" data-z="-">－ 작게</button><span>손가락으로 밀어서 보세요</span><button type="button" data-z="+">＋ 크게</button><button type="button" data-z="x">닫기</button></div><div class="zoom-area"><img src="${esc(src)}" alt="${esc(alt || '확대된 학습 그림')}" style="--zoom:100%"></div></div>`;
     const img = $('img', root);
     $('#app').inert = true; document.body.style.overflow = 'hidden';
+    zoomClosing = false;
+    if (!hasZoomState()) { try { history.pushState({ cbZoom: 1 }, '', location.href); } catch (_) { /* 기록을 못 넣는 환경: 뒤로 버튼은 이전 화면으로 간다 */ } }
     root.onclick = (e) => {
       const b = e.target.closest('[data-z]'); if (!b) return;
-      if (b.dataset.z === 'x') { closeZoom(); return; }
+      if (b.dataset.z === 'x') { dismissZoom(); return; }
       zoom = Math.max(100, Math.min(400, zoom + (b.dataset.z === '+' ? 50 : -50)));
       img.style.setProperty('--zoom', zoom + '%');
     };
     root.onkeydown = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); closeZoom(); }
+      if (e.key === 'Escape') { e.preventDefault(); dismissZoom(); }
       if (e.key === 'Tab') {
         const buttons = $$('button', root), first = buttons[0], last = buttons[buttons.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -428,6 +445,18 @@
     $('[data-z="x"]', root).focus();
   }
   document.addEventListener('click', (e) => { const z = e.target.closest('[data-zoom]'); if (z) openZoom(z.dataset.zoom, z.dataset.zoomAlt || z.getAttribute('alt')); });
+  window.addEventListener('popstate', () => {
+    if (zoomBackPending) {
+      zoomBackPending = false;
+      // 느린 기기에서 뒤로가기가 늦게 와서 그사이 확대 창을 다시 연 경우: 창은 그대로 두고 기록 항목만 새로 넣는다
+      if (zoomIsOpen() && !zoomClosing) { try { history.pushState({ cbZoom: 1 }, '', location.href); } catch (_) { /* 무시 */ } return; }
+    }
+    if (zoomIsOpen()) { closeZoom(); return; }
+    // 확대 창이 닫힌 채 남은 항목(주소창 이동·새로고침 뒤)에 도착한 경우: 표시만 지워 다시 열 때 항목이 겹치지 않게 한다
+    if (hasZoomState()) { try { history.replaceState(null, '', location.href); } catch (_) { /* 무시 */ } }
+  });
+  // 새로고침 뒤에는 브라우저가 history.state 를 되살리므로, 확대 창이 없는데 표시만 남은 경우를 지운다
+  if (hasZoomState()) { try { history.replaceState(null, '', location.href); } catch (_) { /* 무시 */ } }
 
   // ---------- 문제 허브 ----------
   function renderQuizHub() {
@@ -935,7 +964,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev4' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev5' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
