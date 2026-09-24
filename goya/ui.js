@@ -352,13 +352,14 @@
   function downloadRows(rows, name, button, successText) {
     if (state.saving) return;
     state.saving = true; if (button) button.disabled = true;
-    saveTextFile(name, csvText(rows), result => {
+    const finish = result => {
       state.saving = false;
       if (button) button.disabled = button.id === 'export' ? exportDisabled() : false;
-      if (!result.ok) notify(result.message || '파일을 저장하지 못했어요.', 'error');
+      if (!result.ok) { notify(result.message || '파일을 저장하지 못했어요.', 'error'); try { $('status').scrollIntoView({ block: 'center' }); } catch (_) {} }
       else if (result.native) notify(result.message || '파일을 저장했어요.', 'success');
       else if (successText) notify(successText, 'success');
-    });
+    };
+    try { saveTextFile(name, csvText(rows), finish); } catch (_) { finish(saveResult(false, false, '', '파일을 저장하지 못했어요.')); }
   }
   function exportDisabled() { const s = state.snapshot || (state.engine && state.engine.snapshot && state.engine.snapshot()); return !s || (!s.decisions.length && !s.trades.length && !s.position); }
   function notify(text, kind) { $('status').textContent = text + (state.runWarning ? ' ' + state.runWarning : ''); $('status').className = 'status' + (kind ? ' ' + kind : ''); }

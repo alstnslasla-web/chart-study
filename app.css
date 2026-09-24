@@ -301,6 +301,7 @@ details.card summary { font-weight: 700; cursor: pointer; }
 /* Accessibility and reduced motion */
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 .modal-top { flex-wrap: wrap; }
+.modal-bg .modal-top { background: #0b1a1f; position: relative; z-index: 1; }
 
 /* 만든이 김민수 | 저작권 © 2026 김민수. All rights reserved. | 무단복제 금지. 저작권자의 사전 허락 없는 복제 및 재배포를 금합니다. 외부 인용 자료와 상표의 권리는 해당 권리자에게 있습니다. */
 .hero .hero-credit { font-size: .82em; opacity: .95; margin: .5em 0 .7em; }

@@ -160,6 +160,9 @@
   function goyaProgress() {
     let n = 0, t = 0;
     try { const s = JSON.parse(localStorage.getItem('cb:goya-sim:v1') || 'null'); if (s && typeof s === 'object') { n = Number(s.decisionCount) || 0; t = Number(s.tradeCount) || 0; } } catch (e) { /* 저장 불가 환경 */ }
+    if (!n) {
+      try { const run = JSON.parse(localStorage.getItem('cb:goya-sim:v1:run') || 'null'); if (run && Array.isArray(run.actions) && run.actions.length) return { pct: 0.05, label: '이어서 연습하기' }; } catch (e) { /* 저장 불가 환경 */ }
+    }
     return { pct: Math.min(1, n / 20), label: n ? `판단 ${n}회 · 완료 거래 ${t}회` : '아직 연습 전' };
   }
   // ---------- 쉽게 열기: 바탕화면 아이콘 · 카카오톡 밖에서 열기 ----------
@@ -414,9 +417,10 @@
   // 닫기 버튼·Esc: 넣어 둔 history 항목이 있으면 뒤로 가서 지운다(popstate 가 닫음). 없으면 바로 닫는다.
   function dismissZoom() {
     if (zoomClosing) return;
-    if (!hasZoomState()) { closeZoom(); return; }
+    if (!hasZoomState() || zoomBackPending) { closeZoom(); return; } // 앞서 보낸 뒤로가기가 아직 오는 중이면 그것이 항목을 지운다
     zoomClosing = true; zoomBackPending = true;
     history.back();
+    setTimeout(() => { zoomBackPending = false; }, 2000); // 뒤로가기가 끝내 안 오면 다음 휴대폰 뒤로 버튼을 가로채지 않게
     setTimeout(() => { if (zoomClosing && zoomIsOpen()) closeZoom(); }, 400); // popstate 가 안 오는 예외 상황 대비
   }
   function openZoom(src, alt) {
@@ -964,7 +968,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev5' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev6' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
