@@ -124,31 +124,47 @@
     document.title = t === '차트 배움터' ? t : t + ' | 차트 배움터';
   }
   backBtn.addEventListener('click', () => { if (backTo) location.hash = backTo; else history.back(); });
+  // '가' 버튼: 지금 단계(점 3개·읽기 이름)와 누르면 바뀔 단계를 늘 알려 준다. 순서는 보통 → 크게 → 아주 크게 → 보통.
+  const FONT_ORDER = ['M', 'L', 'XL'];
+  const FONT_NAME = { M: '보통', L: '크게', XL: '아주 크게' };
+  const fontNext = (f) => FONT_ORDER[(FONT_ORDER.indexOf(f) + 1) % FONT_ORDER.length];
+  function updateFontBtn() {
+    const f = S.settings.font || 'L', label = `글자 크기: ${FONT_NAME[f]}, 3단계 중 ${FONT_ORDER.indexOf(f) + 1}단계. 누르면 ${FONT_NAME[fontNext(f)]}`;
+    const b = $('#font-btn'); b.setAttribute('aria-label', label); b.title = '글자 크기';
+  }
+  updateFontBtn();
   $('#font-btn').addEventListener('click', () => {
-    const order = ['M', 'L', 'XL'];
-    const cur = order.indexOf(S.settings.font || 'L');
-    S.settings.font = order[(cur + 1) % order.length];
+    S.settings.font = fontNext(S.settings.font || 'L');
     document.documentElement.dataset.font = S.settings.font; save();
+    updateFontBtn();
     if (location.hash.startsWith('#sim-example')) requestAnimationFrame(drawSim);
     const goyaFrame = document.getElementById('goya-practice-frame');
     if (goyaFrame && goyaFrame.contentWindow) goyaFrame.contentWindow.postMessage({ type: 'cb-font', font: S.settings.font }, location.protocol === 'file:' ? '*' : location.origin);
-    toast({ M: '글자: 보통', L: '글자: 크게', XL: '글자: 아주 크게' }[S.settings.font]);
+    toast('글자: ' + FONT_NAME[S.settings.font], `3단계 중 ${FONT_ORDER.indexOf(S.settings.font) + 1}단계 · 한 번 더 누르면 ${FONT_NAME[fontNext(S.settings.font)]}`);
   });
 
-  function toast(msg) {
+  // 알림: index.html 의 #toast(role=status)를 다시 쓴다. 상단바 바로 아래에 3초 뜨고, 누름은 아래 버튼으로 그대로 통과한다(app.css .toast).
+  let toastTimer = null;
+  function toast(msg, sub) {
     let t = $('#toast');
-    if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:calc(var(--touch) + 20px);transform:translateX(-50%);background:#16232a;color:#fff;padding:12px 20px;border-radius:14px;z-index:60;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3)'; document.body.appendChild(t); }
-    t.textContent = msg; t.style.display = 'block';
-    clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, 1600);
+    if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
+    t.innerHTML = `<strong>${esc(msg)}</strong>${sub ? `<span>${esc(sub)}</span>` : ''}`;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.classList.remove('show'); toastTimer = setTimeout(() => { t.textContent = ''; }, 250); }, 3000);
   }
 
   function html(strings, ...vals) { return strings.reduce((acc, s, i) => acc + s + (i < vals.length ? vals[i] : ''), ''); }
+  // 바깥 링크(target=_blank)는 app.css 에서 글자 뒤에 ↗ 를 붙인다. 목록 위에 이 안내를 한 줄 둔다.
+  const EXT_NOTE = '<p class="small-print ext-note">↗ 표시가 붙은 글자를 누르면 인터넷 창이 새로 열립니다. 다 본 뒤 뒤로 가기를 누르면 배움터로 돌아옵니다.</p>';
 
   // ---------- 홈 ----------
-  function ring(pct, label) {
+  function ring(pct, label, text) {
     const r = 26, c = 2 * Math.PI * r, off = c * (1 - Math.min(1, Math.max(0, pct)));
-    return `<svg class="ring" viewBox="0 0 64 64" aria-label="${esc(label)}"><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--brand-soft)" stroke-width="7"/><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--brand)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="38" text-anchor="middle">${Math.round(pct * 100)}%</text></svg>`;
+    return `<svg class="ring" viewBox="0 0 64 64" aria-label="${esc(label)}"><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--brand-soft)" stroke-width="7"/><circle cx="32" cy="32" r="${r}" fill="none" stroke="var(--brand)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="38" text-anchor="middle">${esc(text ?? Math.round(pct * 100) + '%')}</text></svg>`;
   }
+  // 별: 빈 별(☆)은 짙은 호박색으로 따로 칠해 흰 바탕에서도 보이게 한다(app.css .stars .star-off).
+  const starsHtml = (n, total) => `<div class="stars" role="img" aria-label="별 ${total}개 중 ${n}개">${'★'.repeat(n)}${n < total ? `<span class="star-off">${'☆'.repeat(total - n)}</span>` : ''}</div>`;
   function drawHeroStrip() {
     const c = $('#hero-strip'); if (!c) return;
     const dpr = window.devicePixelRatio || 1; const W = c.clientWidth, H = c.clientHeight; if (!W) return;
@@ -174,7 +190,8 @@
     samsung: /SamsungBrowser/i.test(UA),
     android: /Android/i.test(UA),
     // 안드로이드 앱(APK) 안에서는 이미 아이콘이 있으므로 설치 안내를 띄우지 않는다.
-    standalone: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true || location.hostname === 'appassets.androidplatform.net'
+    standalone: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true || location.hostname === 'appassets.androidplatform.net',
+    apk: location.hostname === 'appassets.androidplatform.net' || /ChartBaeumteoApp\//.test(UA) // 앱 안에서는 '브라우저' 대신 '이 기기'라고만 쓴다
   };
   let installPrompt = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if ((location.hash || '#home').startsWith('#home')) renderHome(); });
@@ -188,7 +205,7 @@
   function accessHelp(force) {
     const hidden = store.get('install', { hidden: false }).hidden;
     if (ENV.standalone || (!ENV.ios && !ENV.android) || (hidden && !force)) {
-      return ENV.standalone || (!ENV.ios && !ENV.android) ? '' : '<p class="access-again"><button type="button" class="linkish" data-act="install-show">📲 바탕화면에 아이콘 만드는 방법 다시 보기</button></p>';
+      return ENV.standalone || (!ENV.ios && !ENV.android) ? '' : '<p class="access-again"><button type="button" class="linkish" data-act="install-show"><span aria-hidden="true">📲</span> 바탕화면에 아이콘 만드는 방법 다시 보기</button></p>';
     }
     let title = '📲 바탕화면에 아이콘 만들기', body = '', action = '';
     if (ENV.kakao) {
@@ -239,28 +256,28 @@
         <a href="#learn"><b>1</b>배우기</a><a href="#quiz"><b>2</b>문제</a><a href="#binance"><b>3</b>바이낸스</a><a href="#sim"><b>4</b>연습</a>
       </nav>
       <a class="card lift module-card" href="#learn">
-        <div class="mod-head"><div class="mod-ico">📖</div><div><div class="mod-title">차트 배우기</div><div class="mod-sub">${COURSE.length}강 · 그림과 설명, 강마다 확인 문제</div></div></div>
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">📖</div><div><div class="mod-title">차트 배우기</div><div class="mod-sub">${COURSE.length}강 · 그림과 설명, 강마다 확인 문제</div></div></div>
         ${ring(doneN / Math.max(1, COURSE.length), '학습 진도')}
         <div class="mod-foot"><span class="badge">${doneN} / ${COURSE.length}강 완료</span><span>1부 1~8강부터</span></div>
       </a>
       ${timeframeTeaser()}
       <a class="card lift module-card" href="#quiz">
-        <div class="mod-head"><div class="mod-ico">🎯</div><div><div class="mod-title">문제 도전</div><div class="mod-sub">그림을 보고 답하는 객관식 · 별 모으기</div></div></div>
-        ${ring(st.seen ? st.ok / st.seen : 0, '정답률')}
-        <div class="mod-foot"><span class="badge">${st.seen}문제 · 정답률 ${acc}%</span><span style="color:var(--accent-deep)">${'★'.repeat(starsN)}${'☆'.repeat(5 - starsN)}</span><span>은행 ${BANK.length}문제</span></div>
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">🎯</div><div><div class="mod-title">문제 도전</div><div class="mod-sub">그림을 보고 답하는 객관식 · 별 모으기</div></div></div>
+        ${st.seen ? ring(st.ok / st.seen, '정답률') : ring(0, '정답률', '–')}
+        <div class="mod-foot"><span class="badge">${st.seen ? `${st.seen}문제 · 정답률 ${acc}%` : '아직 푼 문제 없음'}</span><span style="color:var(--accent-deep)" role="img" aria-label="별 5개 중 ${starsN}개">${'★'.repeat(starsN)}${'☆'.repeat(5 - starsN)}</span><span>전체 ${BANK.length}문제</span></div>
       </a>
       <a class="card lift module-card" href="#binance">
-        <div class="mod-head"><div class="mod-ico">📱</div><div><div class="mod-title">바이낸스 선물 앱</div><div class="mod-sub">가입 → 인증 → 입금 → 선물 화면 → 롱/숏 → TP/SL</div></div></div>
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">📱</div><div><div class="mod-title">바이낸스 선물 앱</div><div class="mod-sub">가입 → 인증 → 입금 → 선물 화면 → 롱/숏 → 익절·손절(TP/SL)</div></div></div>
         ${ring(bn / Math.max(1, STEPS.length), '단계 진도')}
         <div class="mod-foot"><span class="badge">${bn} / ${STEPS.length}단계 확인</span><span>모의거래부터</span></div>
       </a>
       <a class="card lift module-card" href="#sim">
-        <div class="mod-head"><div class="mod-ico">📈</div><div><div class="mod-title">지표 모의연습</div><div class="mod-sub">우리 지표 실제 기록 · LL/SS·Premium·RS 신호를 보며 롱·숏·관망 연습</div></div></div>
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">📈</div><div><div class="mod-title">지표 모의연습</div><div class="mod-sub">우리 지표 실제 기록 · 세 가지 신호를 보며 롱·숏·관망 연습</div></div></div>
         ${ring(goyaProgress().pct, '연습 진행')}
         <div class="mod-foot"><span class="badge">${goyaProgress().label}</span><span>실제 기록 353종목 · 한 시간씩 진행</span></div>
       </a>
-      <div class="notice"><strong>이 앱은 연습용입니다</strong>투자 조언이 아니며 수익을 약속하거나 특정 종목·거래를 권하지 않습니다. 선물은 투자금 전액 손실과 강제청산 위험이 있습니다. 학습 기록은 이 기기·브라우저에만 저장되며 다른 사람과 공유되지 않습니다.</div>
-      <a class="big-btn accent" href="#quiz/play?mode=daily">🎯 오늘의 도전 10문제 시작</a>
+      <div class="notice"><strong>이 앱은 연습용입니다</strong>투자 조언이 아니며 수익을 약속하거나 특정 종목·거래를 권하지 않습니다. 선물은 투자금 전액 손실과 강제청산 위험이 있습니다. 학습 기록은 ${ENV.apk ? '이 기기' : '이 기기·브라우저'}에만 저장되며 다른 사람과 공유되지 않습니다.</div>
+      <a class="big-btn accent" href="#quiz/play?mode=daily"><span aria-hidden="true">🎯</span> 오늘의 도전 10문제 시작</a>
     `;
     bindAccessHelp(view);
     requestAnimationFrame(drawHeroStrip);
@@ -269,7 +286,7 @@
   // ---------- 배우기 ----------
   function renderLearn() {
     setTop('차트 배우기', '#home');
-    let out = '';
+    let out = '', teaser = false;
     PARTS.forEach((p, pi) => {
       const items = COURSE.map((L, i) => ({ L, i })).filter(({ L }) => partOf(L) === pi);
       if (!items.length) return;
@@ -278,14 +295,15 @@
         out += `<li><a class="lesson-item ${S.done[L.id] ? 'done' : ''}" href="#lesson/${esc(L.id)}"><span class="num">${S.done[L.id] ? '✓' : pad2(i + 1)}</span><span><div class="t">${esc(L.title)}</div><div class="s">${esc(L.subtitle || '')}${FIG[L.id] ? ' · 🖼 그림' : ''}</div></span><span class="chev">›</span></a></li>`;
       });
       out += '</ul>';
+      if (!teaser) { out += timeframeTeaser(); teaser = true; } // 1부 목록 바로 뒤(2부 제목 앞)에 시간봉 가이드
     });
-    view.innerHTML = timeframeTeaser() + `<div class="tip">한 번에 한 강만 읽어도 됩니다. 1부 1~8강부터 시작하세요.</div>${out}`;
+    view.innerHTML = `<div class="tip">한 번에 한 강만 읽어도 됩니다. 1부 1~8강부터 시작하세요.</div>${out}${teaser ? '' : timeframeTeaser()}`;
   }
 
   function figureHtml(name, extraCaption) {
     if (!name) return '';
     const capText = extraCaption || FIG_CAPTION[name] || '';
-    return `<figure class="figure"><img src="${IMG(name)}" alt="${esc(FIG_CAPTION[name] || name)}" loading="lazy" data-zoom="${IMG(name)}"><figcaption><span>${esc(capText)}${/학습용 가상|앱 화면 예시/.test(capText) ? '' : ' · 학습용 가상 그림'}</span><button class="zoom-btn" type="button" data-zoom="${IMG(name)}">🔍 크게</button></figcaption></figure>`;
+    return `<figure class="figure"><img src="${IMG(name)}" alt="${esc(FIG_CAPTION[name] || name)}" loading="lazy" data-zoom="${IMG(name)}"><figcaption><span>${esc(capText)}${/학습용 가상|앱 화면 예시/.test(capText) ? '' : ' · 학습용 가상 그림'}</span><button class="zoom-btn" type="button" data-zoom="${IMG(name)}"><span aria-hidden="true">🔍</span> 크게</button></figcaption></figure>`;
   }
 
   function renderLesson(id) {
@@ -305,9 +323,9 @@
       ${(L.objectives || []).length ? `<div class="card"><h2>이 강에서 익힐 것</h2><ul>${L.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}
       ${(L.sections || []).map((s) => `<div class="card section-card"><h2>${esc(s.heading)}</h2><p>${esc(s.body)}</p></div>`).join('')}
       ${(L.checklist || []).length ? `<div class="card"><h2>스스로 확인하기</h2><ul class="check-list">${L.checklist.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
-      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary><ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
-      ${partOf(L) === 3 ? '<a class="big-btn" href="#sim">📈 지표 모의연습에서 직접 해보기</a>' : ''}
-      <a class="big-btn accent" href="#quiz/play?mode=lesson&id=${esc(id)}">🎯 이 강 문제 풀기 (${qN}문제)</a>
+      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary>${EXT_NOTE}<ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
+      ${partOf(L) === 3 ? '<a class="big-btn" href="#sim"><span aria-hidden="true">📈</span> 지표 모의연습에서 직접 해보기</a>' : ''}
+      <a class="big-btn accent" href="#quiz/play?mode=lesson&id=${esc(id)}"><span aria-hidden="true">🎯</span> 이 강 문제 풀기 (${qN}문제)</a>
       <button class="big-btn ${S.done[id] ? 'ok' : 'secondary'}" type="button" data-act="done">${S.done[id] ? '✓ 다 읽었어요 (완료)' : '다 읽었어요'}</button>
       <div class="row">
         ${prev ? `<a class="big-btn ghost" href="#lesson/${esc(prev.id)}">‹ 이전 강</a>` : '<span></span>'}
@@ -350,7 +368,7 @@
   function renderTimeframes() {
     const G = window.TIMEFRAME_GUIDE;
     setTop('시간봉과 큰 흐름', '#learn');
-    if (!G) { view.innerHTML = '<div class="notice">시간봉 자료를 불러오지 못했습니다. 페이지를 새로고침해 주세요.</div>'; return; }
+    if (!G) { view.innerHTML = '<div class="notice">시간봉 자료를 불러오지 못했습니다. 화면을 닫았다가 다시 열어 주세요.</div><a class="big-btn secondary" href="#learn">배우기 목록으로</a>'; return; }
     view.innerHTML = html`
       <div class="eyebrow">배우기 · 연결 가이드 · 약 15분</div>
       <h2 class="page-title">${esc(G.title)}</h2>
@@ -364,9 +382,9 @@
       <section class="card"><h2>4. 가상 사례로 비교하기</h2><p class="muted">실제 종목·현재 시세·주문 지시가 아닙니다.</p>${G.cases.map(c => `<details class="tf-case"><summary>${esc(c.title)}</summary><div class="tf-details-body"><span class="badge warn">${esc(c.badge)}</span><p>${esc(c.body)}</p><p><strong>판단:</strong> ${esc(c.conclusion)}</p></div></details>`).join('')}</section>
       <section class="card tf-anchor" id="tf-risk"><h2>5. 작은 봉보다 먼저 정할 위험</h2><p><strong>무효화 위치 → 손실 예산 → 수량 → 비용·목표 확인</strong> 순서로 적습니다. 손절은 진입 근거가 틀렸다고 볼 구조에 맞춰 검토하는 것이지, 언제나 1분봉 꼬리 바로 아래에 붙이는 것이 아닙니다. 손절 거리가 넓어지면 같은 예산에서 수량을 줄이거나 거래를 하지 않을 수 있습니다.</p><div class="notice bad"><strong>봉 마감 기다리기와 손절 미루기는 다릅니다</strong>신호를 확인하는 시간 기준과 실제 손절·최대 손실 기준을 각각 적으세요. 일봉 마감을 기다린다며 위험 한도를 없애면 안 됩니다. 손절 주문도 지정한 트리거 가격의 체결을 보장하지 않으며, 수수료·슬리피지·미체결 위험은 남습니다.</div><a class="big-btn secondary" href="#lesson/risk-first">손절과 수량 계산 배우기</a><h3>이럴 때는 진입하지 않고 보류합니다</h3><ul class="check-list">${G.noTrade.map(t => `<li>${esc(t)}</li>`).join('')}</ul></section>
       <section class="card"><h2>6. 내 말로 계획 한 줄 쓰기</h2><p class="tf-plan-example">“일봉의 ___ 흐름 안에서 4시간봉 ___ 구간을 관찰한다. 1시간봉 ___ 조건이 마감으로 확인되고 15분봉 ___, 5분봉 ___ 조건이 생기면 진입 후보로 검토한다. 무효화는 ___, 손실 예산은 ___, 수량은 ___, 목표와 비용은 ___다. ___이면 거래하지 않는다.”</p><p class="muted">종이에 가상 사례로 채워 보세요. 현재 시장의 매수·매도 추천이 아니며, 이 화면에서 실제 주문은 나가지 않습니다.</p><ul class="check-list">${G.checklist.map(c => `<li>${esc(c)}</li>`).join('')}</ul><a class="big-btn secondary" href="#lesson/plan-exits">진입·손절·청산 계획으로 이어가기</a></section>
-      <section class="card tf-anchor" id="tf-checks"><h2>7. 짧게 확인하기</h2><p class="muted">이 가이드의 자가점검 3문항입니다. 기존 120문제의 점수·학습 기록에는 합산하지 않습니다.</p>${G.checks.map((q, qi) => `<div class="tf-check"><h3>${qi + 1}. ${esc(q.question)}</h3><div class="tf-check-options" data-tf-check="${qi}">${q.options.map((o, oi) => `<button class="opt-btn" type="button" data-tf-answer="${oi}">${esc(o)}</button>`).join('')}</div><p class="feedback" id="tf-feedback-${qi}" role="status" tabindex="-1" hidden></p></div>`).join('')}<button class="big-btn secondary" type="button" id="tf-check-reset">자가점검 다시 풀기</button></section>
-      <details class="card"><summary>공식 교육 자료와 이 가이드의 범위</summary><div class="tf-details-body"><p class="muted">확인 ${esc(G.checked)}. 아래 자료의 일반 원리를 한국어로 설명하고 학습용 사례를 구성했습니다. 일봉→4시간봉→1시간봉→15분봉→5분봉 전체 체인을 특정 기관이 그대로 검증한 것은 아닙니다. 외환·주식·선물 자료를 가상자산의 실거래 규칙으로 그대로 옮기지 마세요.</p><ul class="tf-sources">${G.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><p class="muted">${esc(s.scope)}</p></li>`).join('')}</ul><p class="small-print">기술적 분석은 미래를 확정하지 못합니다. 본문과 그림은 교육용이며, 거래소 화면·상품·비용·마감 기준은 실제 사용 시 별도로 확인해야 합니다.</p></div></details>
-      <div class="row"><a class="big-btn ghost" href="#lesson/read-chart">차트 기초</a><a class="big-btn ghost" href="#lesson/trendline">추세선·구조</a></div><a class="big-btn" href="#learn">24강 배우기로 돌아가기</a>
+      <section class="card tf-anchor" id="tf-checks"><h2>7. 짧게 확인하기</h2><p class="muted">이 가이드의 자가점검 3문항입니다. 문제 도전의 점수·학습 기록에는 합산하지 않습니다.</p>${G.checks.map((q, qi) => `<div class="tf-check"><h3>${qi + 1}. ${esc(q.question)}</h3><div class="tf-check-options" data-tf-check="${qi}">${q.options.map((o, oi) => `<button class="opt-btn" type="button" data-tf-answer="${oi}">${esc(o)}</button>`).join('')}</div><p class="feedback" id="tf-feedback-${qi}" role="status" tabindex="-1" hidden></p></div>`).join('')}<button class="big-btn secondary" type="button" id="tf-check-reset">자가점검 다시 풀기</button></section>
+      <details class="card"><summary>공식 교육 자료와 이 가이드의 범위</summary><div class="tf-details-body"><p class="muted">확인 ${esc(G.checked)}. 아래 자료의 일반 원리를 한국어로 설명하고 학습용 사례를 구성했습니다. 일봉→4시간봉→1시간봉→15분봉→5분봉 전체 체인을 특정 기관이 그대로 검증한 것은 아닙니다. 외환·주식·선물 자료를 가상자산의 실거래 규칙으로 그대로 옮기지 마세요.</p>${EXT_NOTE}<ul class="tf-sources">${G.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><p class="muted">${esc(s.scope)}</p></li>`).join('')}</ul><p class="small-print">기술적 분석은 미래를 확정하지 못합니다. 본문과 그림은 교육용이며, 거래소 화면·상품·비용·마감 기준은 실제 사용 시 별도로 확인해야 합니다.</p></div></details>
+      <div class="row"><a class="big-btn ghost" href="#lesson/read-chart">차트 기초</a><a class="big-btn ghost" href="#lesson/trendline">추세선·구조</a></div><a class="big-btn" href="#learn">배우기 목록으로 돌아가기</a>
     `;
     const showRole = id => {
       const t = G.intervals.find(x => x.id === id) || G.intervals[0];
@@ -404,11 +422,13 @@
   let zoomReturnFocus = null;
   let zoomClosing = false;
   let zoomBackPending = false; // 닫기 버튼이 보낸 history.back() 이 아직 도착하지 않음
+  let zoomResize = null; // 확대 창이 열려 있는 동안만 쓰는 화면 회전·크기 변화 처리
   const zoomIsOpen = () => $('#modal-root').childElementCount > 0;
   const hasZoomState = () => !!(history.state && history.state.cbZoom);
   function closeZoom(restoreFocus = true) {
     const root = $('#modal-root');
     zoomClosing = false;
+    if (zoomResize) { window.removeEventListener('resize', zoomResize); zoomResize = null; }
     root.innerHTML = ''; root.onclick = null; root.onkeydown = null;
     $('#app').inert = false; document.body.style.overflow = '';
     if (restoreFocus && zoomReturnFocus?.isConnected) zoomReturnFocus.focus();
@@ -423,25 +443,40 @@
     setTimeout(() => { zoomBackPending = false; }, 2000); // 뒤로가기가 끝내 안 오면 다음 휴대폰 뒤로 버튼을 가로채지 않게
     setTimeout(() => { if (zoomClosing && zoomIsOpen()) closeZoom(); }, 400); // popstate 가 안 오는 예외 상황 대비
   }
+  // 배율은 화면 폭 기준 %(100 = 화면 폭). 그림이 폭 100%로 한 화면에 다 안 들어가면(가로 폰 등) '작게'로 '전체 보기'까지 줄일 수 있다.
   function openZoom(src, alt) {
     const root = $('#modal-root');
     zoomReturnFocus = document.activeElement;
-    let zoom = 100;
-    root.innerHTML = `<div class="modal-bg" role="dialog" aria-modal="true" aria-label="학습 그림 확대"><div class="modal-top"><button type="button" data-z="-">－ 작게</button><span>손가락으로 밀어서 보세요</span><button type="button" data-z="+">＋ 크게</button><button type="button" data-z="x">닫기</button></div><div class="zoom-area"><img src="${esc(src)}" alt="${esc(alt || '확대된 학습 그림')}" style="--zoom:100%"></div></div>`;
-    const img = $('img', root);
+    let zoom = 100, fit = 100;
+    root.innerHTML = `<div class="modal-bg" role="dialog" aria-modal="true" aria-label="학습 그림 확대"><div class="modal-top"><button type="button" data-z="x">닫기</button><div class="zoom-ctrl" role="group" aria-label="그림 크기"><button type="button" data-z="-">－ 작게</button><span class="zoom-level" aria-live="polite"></span><button type="button" data-z="+">＋ 크게</button></div></div><div class="zoom-area"><img src="${esc(src)}" alt="${esc(alt || '확대된 학습 그림')}" style="--zoom:100%"></div></div>`;
+    const img = $('img', root), area = $('.zoom-area', root), level = $('.zoom-level', root), minus = $('[data-z="-"]', root), plus = $('[data-z="+"]', root);
+    const measure = () => { const w = img.naturalWidth, h = img.naturalHeight, r = area.getBoundingClientRect(); fit = w && h && r.width && r.height ? Math.max(10, Math.min(100, Math.floor(100 * r.height * w / (h * r.width)))) : 100; };
+    const apply = () => {
+      zoom = Math.max(Math.min(100, fit), Math.min(400, zoom));
+      img.style.setProperty('--zoom', zoom + '%');
+      minus.disabled = zoom <= Math.min(100, fit); plus.disabled = zoom >= 400;
+      const pan = area.scrollWidth > area.clientWidth + 1 || area.scrollHeight > area.clientHeight + 1;
+      level.innerHTML = `<b>${zoom < 100 ? '전체 보기' : zoom + '%'}</b>${pan ? '<small>밀어서 보기</small>' : ''}`;
+    };
     $('#app').inert = true; document.body.style.overflow = 'hidden';
     zoomClosing = false;
     if (!hasZoomState()) { try { history.pushState({ cbZoom: 1 }, '', location.href); } catch (_) { /* 기록을 못 넣는 환경: 뒤로 버튼은 이전 화면으로 간다 */ } }
+    const ready = () => { measure(); apply(); };
+    if (img.complete) ready(); else { apply(); img.addEventListener('load', ready, { once: true }); }
+    if (zoomResize) window.removeEventListener('resize', zoomResize);
+    zoomResize = () => { const wasFit = zoom < 100; measure(); if (wasFit) zoom = fit; apply(); };
+    window.addEventListener('resize', zoomResize);
     root.onclick = (e) => {
-      const b = e.target.closest('[data-z]'); if (!b) return;
+      const b = e.target.closest('[data-z]'); if (!b || b.disabled) return;
       if (b.dataset.z === 'x') { dismissZoom(); return; }
-      zoom = Math.max(100, Math.min(400, zoom + (b.dataset.z === '+' ? 50 : -50)));
-      img.style.setProperty('--zoom', zoom + '%');
+      zoom = b.dataset.z === '+' ? (zoom < 100 ? 100 : zoom + 50) : (zoom > 100 ? zoom - 50 : fit);
+      apply();
+      if (b.disabled) (b === minus ? plus : minus).focus(); // 끝 배율에서 눌린 버튼이 잠기면 포커스를 옆 버튼으로
     };
     root.onkeydown = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); dismissZoom(); }
       if (e.key === 'Tab') {
-        const buttons = $$('button', root), first = buttons[0], last = buttons[buttons.length - 1];
+        const buttons = $$('button:not(:disabled)', root), first = buttons[0], last = buttons[buttons.length - 1];
         if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
@@ -471,11 +506,11 @@
     const imgN = BANK.filter((q) => q.image).length;
     const stars = Math.min(5, Math.floor(st.ok / 20));
     view.innerHTML = html`
-      <div class="card center"><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</div><div class="muted">정답 20개마다 별 하나 · 지금까지 정답 ${st.ok}개</div>
-        <div class="stat-grid"><div><b>${st.seen}</b><span>푼 문제</span></div><div><b>${acc}%</b><span>정답률</span></div><div><b>${BANK.length}</b><span>문제 은행</span></div></div></div>
-      <a class="big-btn accent" href="#quiz/play?mode=daily">🎯 오늘의 도전 10문제</a>
-      <a class="big-btn" href="#quiz/play?mode=image">🖼 그림 보고 답하기 (${imgN}문제 중 10)</a>
-      <a class="big-btn ${wrong ? 'danger' : 'secondary'}" href="#quiz/play?mode=wrong" ${wrong ? '' : 'aria-disabled="true" onclick="return false"'}>🔁 틀린 문제 다시 풀기 (${wrong}개)</a>
+      <div class="card center">${starsHtml(stars, 5)}<div class="muted">정답 20개마다 별 하나 · 지금까지 정답 ${st.ok}개</div>
+        <div class="stat-grid"><div><b>${st.seen}</b><span>푼 문제</span></div><div><b>${st.seen ? acc + '%' : '–'}</b><span>정답률</span></div><div><b>${BANK.length}</b><span>전체 문제</span></div></div></div>
+      <a class="big-btn accent" href="#quiz/play?mode=daily"><span aria-hidden="true">🎯</span> 오늘의 도전 10문제</a>
+      <a class="big-btn" href="#quiz/play?mode=image"><span aria-hidden="true">🖼</span> 그림 보고 답하기 (${imgN}문제 중 10)</a>
+      <a class="big-btn ${wrong ? 'danger' : 'secondary'}" href="#quiz/play?mode=wrong" ${wrong ? '' : 'aria-disabled="true" onclick="return false"'}><span aria-hidden="true">🔁</span> 틀린 문제 다시 풀기 (${wrong}개)</a>
       <h2 class="part-head">단원별 세트</h2>
       ${PARTS.map((p, i) => `<a class="big-btn secondary" href="#quiz/play?mode=part&id=${i}">${esc(p)} (${BANK.filter((q) => partOf(lessonOf(q.lesson) || {}) === i).length}문제)</a>`).join('')}
       <div class="tip">틀려도 괜찮습니다. 해설을 읽고 "왜"를 한 번 말해 보면 오래 기억됩니다.</div>
@@ -485,39 +520,40 @@
   }
 
   // ---------- 문제 풀기 ----------
-  const Q = { list: [], idx: 0, correct: 0, answered: false, mode: 'daily', label: '' };
+  const Q = { list: [], idx: 0, correct: 0, answered: false, mode: 'daily', label: '', short: '' };
 
+  // label = 본문 머리 줄의 세트 이름 전체, short = 상단 제목용 짧은 이름(좁은 폰·아주 크게에서도 잘리지 않게)
   function pickSet(mode, id) {
     let pool = BANK.slice();
-    let label = '오늘의 도전';
-    if (mode === 'lesson') { pool = BANK.filter((q) => q.lesson === id); label = `${pad2(lessonIndex(id) + 1)}강 문제`; }
-    else if (mode === 'image') { pool = shuffle(BANK.filter((q) => q.image)).slice(0, 10); label = '그림 보고 답하기'; }
-    else if (mode === 'wrong') { const w = new Set(wrongIds()); pool = shuffle(BANK.filter((q) => w.has(q.id))).slice(0, 15); label = '틀린 문제 다시'; }
-    else if (mode === 'part') { pool = shuffle(BANK.filter((q) => partOf(lessonOf(q.lesson) || {}) === Number(id))); label = PARTS[Number(id)] || '단원 세트'; }
+    let label = '오늘의 도전', short = label;
+    if (mode === 'lesson') { pool = BANK.filter((q) => q.lesson === id); label = short = `${pad2(lessonIndex(id) + 1)}강 문제`; }
+    else if (mode === 'image') { pool = shuffle(BANK.filter((q) => q.image)).slice(0, 10); label = '그림 보고 답하기'; short = '그림 문제'; }
+    else if (mode === 'wrong') { const w = new Set(wrongIds()); pool = shuffle(BANK.filter((q) => w.has(q.id))).slice(0, 15); label = '틀린 문제 다시'; short = '틀린 문제'; }
+    else if (mode === 'part') { pool = shuffle(BANK.filter((q) => partOf(lessonOf(q.lesson) || {}) === Number(id))); label = PARTS[Number(id)] || '단원 세트'; short = PARTS[Number(id)] ? `${Number(id) + 1}부 문제` : '단원 문제'; }
     else { // daily: 덜 본 문제 우선, 배운 강 우선
       const scored = pool.map((q) => ({ q, w: (qStat(q.id).seen ? 1 : 0) * 2 + (S.done[q.lesson] ? 0 : 1) + Math.random() }));
       scored.sort((a, b) => a.w - b.w);
       pool = scored.slice(0, 10).map((x) => x.q);
     }
-    return { list: mode === 'lesson' ? pool : shuffle(pool), label };
+    return { list: mode === 'lesson' ? pool : shuffle(pool), label, short };
   }
 
   function renderQuizPlay(params) {
     const mode = params.get('mode') || 'daily';
     const id = params.get('id');
     const set = pickSet(mode, id);
-    Q.list = set.list; Q.idx = 0; Q.correct = 0; Q.answered = false; Q.mode = mode; Q.label = set.label; Q.lessonId = id;
+    Q.list = set.list; Q.idx = 0; Q.correct = 0; Q.answered = false; Q.mode = mode; Q.label = set.label; Q.short = set.short; Q.lessonId = id;
     if (!Q.list.length) { setTop('문제', '#quiz'); view.innerHTML = `<div class="card"><h2>풀 문제가 없습니다</h2><p class="muted">먼저 다른 세트를 풀어 보세요.</p><a class="big-btn" href="#quiz">문제 허브로</a></div>`; return; }
     renderQuestion();
   }
 
   function renderQuestion() {
     const q = Q.list[Q.idx];
-    setTop(`${Q.idx + 1}/${Q.list.length} · ${Q.label}`, Q.mode === 'lesson' ? `#lesson/${Q.lessonId}` : '#quiz');
+    setTop(`${Q.short || Q.label} ${Q.idx + 1}/${Q.list.length}`, Q.mode === 'lesson' ? `#lesson/${Q.lessonId}` : '#quiz');
     const L = lessonOf(q.lesson);
     const keys = ['①', '②', '③', '④'];
     view.innerHTML = html`
-      <div class="quiz-top"><span>${pad2(q.lessonNo)}강 · ${esc(L ? L.title : '')}</span><span class="pts">${Q.correct * 10}점</span></div>
+      <div class="quiz-top"><span>${Q.label !== Q.short ? `<small class="set-name">${esc(Q.label)}</small>` : ''}${pad2(q.lessonNo)}강 · ${esc(L ? L.title : '')}</span><span class="pts">${Q.correct * 10}점</span></div>
       <div class="progress"><i style="width:${Math.round(Q.idx / Q.list.length * 100)}%"></i></div>
       ${q.image ? figureHtml(q.image) : ''}
       <div class="question">${esc(q.question)}</div>
@@ -536,11 +572,14 @@
       save();
       if (navigator.vibrate && !ok) { try { navigator.vibrate(120); } catch (e) { /* 무시 */ } }
       const last = Q.idx + 1 >= Q.list.length;
-      $('#fb', view).innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}"><strong>${ok ? '⭕ 맞았어요!' : '❌ 아쉬워요'}</strong>${ok ? '' : `<div>정답: ${keys[q.answer]} ${esc(q.options[q.answer])}</div>`}<div style="margin-top:6px">${esc(q.explanation)}</div></div><button class="big-btn" type="button" id="next-q">${last ? '결과 보기' : '다음 문제 ›'}</button>`;
+      $('#fb', view).innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}" tabindex="-1"><strong>${ok ? '⭕ 맞았어요!' : '❌ 아쉬워요'}</strong>${ok ? '' : `<div>정답: ${keys[q.answer]} ${esc(q.options[q.answer])}</div>`}<div style="margin-top:6px">${esc(q.explanation)}</div></div><button class="big-btn" type="button" id="next-q">${last ? '결과 보기' : '다음 문제 ›'}</button>`;
       $('#next-q', view).addEventListener('click', () => { if (last) renderResult(); else { Q.idx++; renderQuestion(); window.scrollTo(0, 0); } });
+      // 누른 보기는 잠기면서 포커스를 잃는다 → 해설로 옮겨 화면 읽기가 결과를 읽고, 다음 Tab 은 '다음 문제'로 간다
+      $('#fb .feedback', view).focus({ preventScroll: true });
       $('#fb', view).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     window.scrollTo(0, 0);
+    view.focus({ preventScroll: true }); // 새 문제: 본문(이름 = 상단 제목)으로 포커스를 옮겨 '그림 문제 2/10'처럼 알린다
   }
 
   function renderResult() {
@@ -551,9 +590,9 @@
     const wrongHere = Q.list.filter((q) => qStat(q.id).lastOk === false);
     setTop('결과', '#quiz');
     view.innerHTML = html`
-      <div class="card center"><div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}</div><div class="score-big">${c} / ${n}</div><div class="muted">${pct >= 90 ? '훌륭해요! 거의 다 맞았습니다.' : pct >= 70 ? '잘했어요. 틀린 문제만 다시 보면 됩니다.' : pct >= 50 ? '절반 넘게 맞았어요. 해설을 다시 읽어 보세요.' : '괜찮아요. 해당 강을 한 번 더 읽고 다시 풀어 보세요.'}</div></div>
-      ${wrongHere.length ? `<div class="card"><h2>다시 볼 문제</h2><ul>${wrongHere.map((q) => `<li>${esc(q.question)} <a href="#lesson/${esc(q.lesson)}">(${pad2(q.lessonNo)}강 읽기)</a></li>`).join('')}</ul></div>` : ''}
-      <button class="big-btn accent" type="button" id="replay-quiz">🔁 한 번 더</button>
+      <div class="card center">${starsHtml(stars, 3)}<div class="score-big">${c} / ${n}</div><div class="muted">${pct >= 90 ? '훌륭해요! 거의 다 맞았습니다.' : pct >= 70 ? '잘했어요. 틀린 문제만 다시 보면 됩니다.' : pct >= 50 ? '절반 넘게 맞았어요. 해설을 다시 읽어 보세요.' : '괜찮아요. 해당 강을 한 번 더 읽고 다시 풀어 보세요.'}</div></div>
+      ${wrongHere.length ? `<div class="card"><h2>다시 볼 문제</h2><ul class="review-list">${wrongHere.map((q) => `<li><p>${esc(q.question)}</p><a class="review-link" href="#lesson/${esc(q.lesson)}">${pad2(q.lessonNo)}강 다시 읽기 ›</a></li>`).join('')}</ul></div>` : ''}
+      <button class="big-btn accent" type="button" id="replay-quiz"><span aria-hidden="true">🔁</span> 한 번 더</button>
       ${wrongHere.length ? '<a class="big-btn danger" href="#quiz/play?mode=wrong">틀린 문제만 다시</a>' : ''}
       <a class="big-btn secondary" href="#quiz">문제 허브로</a>
     `;
@@ -563,6 +602,7 @@
       renderQuizPlay(params);
     });
     window.scrollTo(0, 0);
+    view.focus({ preventScroll: true });
   }
 
   // ---------- 바이낸스 ----------
@@ -576,7 +616,7 @@
       <div class="progress"><i style="width:${Math.round(doneN / Math.max(1, STEPS.length) * 100)}%"></i></div><div class="muted">${doneN} / ${STEPS.length}단계 확인 · ${esc(META.checked || '')}</div>
       <div class="tip">바이낸스 안내는 영문·한글 짝그림으로 비교합니다. 단계 안의 번호를 누르면 설명에 맞는 위치가 강조됩니다. 업비트 8·9단계의 한글 공식 참고 사진은 그대로 볼 수 있습니다.</div>
       <details class="card"><summary style="font-weight:700;cursor:pointer">🇰🇷 한국 이용자가 꼭 알 것 ${META.korea_notes.length}가지</summary><ul style="margin-top:8px">${META.korea_notes.map((n) => `<li style="margin-bottom:6px">${esc(n)}</li>`).join('')}</ul></details>
-      <details class="card"><summary style="font-weight:700;cursor:pointer">📚 용어 풀이 ${META.glossary.length}개</summary><dl class="gloss">${META.glossary.map(([t, e]) => `<dt>${esc(t)}</dt><dd>${esc(e)}</dd>`).join('')}</dl></details>
+      <details class="card"><summary style="font-weight:700;cursor:pointer"><span aria-hidden="true">📚</span> 용어 풀이 ${META.glossary.length}개</summary><dl class="gloss">${META.glossary.map(([t, e]) => `<dt>${esc(t)}</dt><dd>${esc(e)}</dd>`).join('')}</dl></details>
       ${phases.map((p) => `<h2 class="phase-head"><span>${esc(p)}</span><span class="muted">${STEPS.filter((s) => s.phase === p && S.bnb[s.id]).length}/${STEPS.filter((s) => s.phase === p).length}</span></h2>${STEPS.map((s, i) => ({ s, i })).filter(({ s }) => s.phase === p).map(({ s, i }) => `<a class="step-item ${S.bnb[s.id] ? 'done' : ''}" href="#binance/${i}"><span class="num">${S.bnb[s.id] ? '✓' : i + 1}</span><span><div class="t">${esc(s.title)}</div><div class="s">${esc(s.menu)}</div></span><span class="chev">›</span></a>`).join('')}`).join('')}
       <a class="big-btn accent" href="#binance/${STEPS.findIndex((s) => !S.bnb[s.id]) >= 0 ? STEPS.findIndex((s) => !S.bnb[s.id]) : 0}">▶ 이어서 보기</a>
     `;
@@ -683,7 +723,7 @@
   function biMarker(x, y, number) { return `<circle cx="${x}" cy="${y}" r="17" fill="#f0b90b" stroke="#0b0e11" stroke-width="2"/><text x="${x}" y="${y+6}" text-anchor="middle" fill="#111820" font-size="19" font-weight="700">${number}</text>`; }
   function renderBilingualGuide(root, s) {
     const guide = s.bilingual;
-    if (!guide?.actions?.length) { root.innerHTML = '<div class="notice">영한 화면 자료를 불러오지 못했습니다. 자료를 확인해 주세요.</div>'; return; }
+    if (!guide?.actions?.length) { root.innerHTML = '<div class="notice">영한 화면 자료를 불러오지 못했습니다. 화면을 닫았다가 다시 열어 주세요.</div>'; return; }
     let current = 0;
     root.innerHTML = `<section class="card bi-guide"><h2>영문 화면과 한글 풀이</h2><p class="small-print"><strong>학습용 모형 · 실제 캡처 아님.</strong> 번호를 누르면 해당 위치로 이동합니다. 영문 그림과 한글 풀이를 비교하세요.</p><details class="bi-how"><summary>그림과 번호 보는 법</summary><p>번호는 아래 ‘이렇게 합니다’와 같습니다. 번호를 누르면 필요한 화면과 위치가 함께 바뀝니다. 여러 화면에 걸친 과정은 나누어 보여 줍니다. 위치는 이 모형의 기준이며 현재 앱과 다를 수 있습니다. 한글 그림은 설명용 번역으로, 실제 한국어 앱 제공을 뜻하지 않습니다.</p></details><div class="bi-number-list" role="group" aria-label="설명 번호 선택">${guide.actions.map((a,i)=>`<button type="button" data-bi-number="${i}" aria-pressed="${i===0}" aria-label="${i+1}번 설명 위치 보기">${i+1}</button>`).join('')}</div><div id="bi-current" class="bi-current" role="status" tabindex="-1"></div><div class="bi-modes" role="group" aria-label="그림 보기 방식"><button type="button" data-bi-mode="both" aria-pressed="true">둘 다</button><button type="button" data-bi-mode="en" aria-pressed="false">영문만</button><button type="button" data-bi-mode="ko" aria-pressed="false">한글만</button></div><p class="small-print">작은 화면에서는 영문 그림 아래에 한글 풀이가 이어집니다. ‘영문만·한글만’으로 한 장씩 볼 수도 있습니다. ‘크게 보기’로 더 확대할 수 있습니다. 점선 상자는 교재 안내이며 실제 앱 문구가 아닙니다.</p><div class="bi-compare-scroll" role="region" aria-label="영문과 한글 비교 그림. 넓은 화면은 좌우, 작은 화면은 위아래로 놓입니다." tabindex="0"><div id="bi-pair" class="bi-pair" data-mode="both"></div></div><div id="bi-location" class="bi-location"></div><div class="step-nav"><button class="big-btn secondary" type="button" data-bi-nav="-1">‹ 이전 번호</button><button class="big-btn secondary" type="button" data-bi-nav="1">다음 번호 ›</button></div><p class="small-print">위쪽 ${Number(s.id)}단계는 전체 안내 순서, 그림의 1~${guide.actions.length}번은 이 단계 안의 설명 순서입니다. 노란 테두리와 같은 번호를 양쪽에서 비교하세요.</p></section>`;
     const show = (index, scroll = false) => {
@@ -721,9 +761,9 @@
         <div class="notice"><strong>사진 속 코인과 숫자는 예시입니다</strong>${esc(guide.note)}</div>
         <div class="labels"><span class="badge">업비트 공식 참고 화면</span><span role="status">${current + 1} / ${guide.references.length}</span></div>
         <h3 class="reference-title" tabindex="-1">${esc(item.title)}</h3>
-        <figure class="figure step-reference"><img src="${src}" alt="${esc(item.title + ' · 업비트 공식 도움말 예시 화면')}" data-zoom="${src}"><figcaption><span>${esc(item.caption)}</span><button class="zoom-btn" type="button" data-zoom="${src}">🔍 크게</button></figcaption></figure>
+        <figure class="figure step-reference"><img src="${src}" alt="${esc(item.title + ' · 업비트 공식 도움말 예시 화면')}" data-zoom="${src}"><figcaption><span>${esc(item.caption)}</span><button class="zoom-btn" type="button" data-zoom="${src}"><span aria-hidden="true">🔍</span> 크게</button></figcaption></figure>
         <div class="step-nav reference-nav"><button class="big-btn secondary" type="button" data-reference="prev" ${current === 0 ? 'disabled' : ''}>‹ 앞 사진</button><button class="big-btn secondary" type="button" data-reference="next" ${current === guide.references.length - 1 ? 'disabled' : ''}>다음 사진 ›</button></div>
-        <p class="small-print reference-source">출처: 업비트 고객센터 · 확인 ${esc(guide.checked)} · <a href="${esc(item.source)}" target="_blank" rel="noopener noreferrer">공식 설명</a> · <a href="${esc(item.original)}" target="_blank" rel="noopener noreferrer">원본 전체</a><br>공식 자료의 해당 화면 부분을 발췌·크기 조정했습니다. 화면 자료의 권리는 업비트·두나무 등 해당 권리자에게 있습니다.</p>`;
+        <p class="small-print reference-source">출처: 업비트 고객센터 · 확인 ${esc(guide.checked)} · <a href="${esc(item.source)}" target="_blank" rel="noopener noreferrer">공식 설명</a> · <a href="${esc(item.original)}" target="_blank" rel="noopener noreferrer">원본 전체</a><br>공식 자료의 해당 화면 부분을 발췌·크기 조정했습니다. 화면 자료의 권리는 업비트·두나무 등 해당 권리자에게 있습니다.</p>${EXT_NOTE}`;
       root.querySelector('[data-reference="prev"]').addEventListener('click', () => { if (current > 0) { current--; draw(true); } });
       root.querySelector('[data-reference="next"]').addEventListener('click', () => { if (current + 1 < guide.references.length) { current++; draw(true); } });
       if (focusTitle) root.querySelector('.reference-title').focus({ preventScroll: true });
@@ -747,8 +787,8 @@
       </div>
       ${s.id === '14' ? '<a class="big-btn secondary" href="#timeframes">시간봉 차이와 큰 흐름 가이드</a>' : ''}
       ${s.guide ? '<div id="step-gallery"></div>' : ''}
-      <div class="notice bad"><strong>⚠ 주의</strong>${esc(s.caution || '')}</div>
-      ${(s.verified || (s.sources || []).length) ? `<div class="small-print">${esc(s.verified || '')} ${(s.sources || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">공식 문서</a>`).join(' · ')}</div>` : ''}
+      <div class="notice bad"><strong><span aria-hidden="true">⚠</span> 주의</strong>${esc(s.caution || '')}</div>
+      ${(s.verified || (s.sources || []).length) ? `<div class="small-print step-sources">${s.verified ? `<p>확인 상태: ${esc(s.verified)}${s.verified === '미확인' ? ' — 현재 앱 화면의 일부(버튼 이름·메뉴 경로 등)를 확인하지 못했습니다.' : ''}</p>` : ''}${(s.sources || []).length ? `<p>참고 자료: ${s.sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">공식 문서${s.sources.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ')}</p>${s.guide ? '' : EXT_NOTE}` : ''}</div>` : ''}
       <button class="big-btn ${S.bnb[s.id] ? 'ok' : 'accent'}" type="button" data-act="done">${S.bnb[s.id] ? '✓ 이해했어요 (확인됨)' : '이 화면 이해했어요'}</button>
       <div class="step-nav">${idx > 0 ? `<a class="big-btn secondary" href="#binance/${idx - 1}">‹ 이전</a>` : '<span style="flex:1"></span>'}${idx < STEPS.length - 1 ? `<a class="big-btn" href="#binance/${idx + 1}">다음 ›</a>` : '<a class="big-btn" href="#binance">목록으로</a>'}</div>
     `;
@@ -896,6 +936,7 @@
     S.sim.games++; S.sim.score += o.pts; S.sim.best = Math.max(S.sim.best, S.sim.score); save();
     SIM.outcome = o; SIM.phase = 'result';
     renderSim();
+    const fb = $('.sim-result .feedback'); if (fb) { fb.setAttribute('tabindex', '-1'); try { fb.focus(); } catch (e) { /* 무시 */ } }
   }
 
   function drawSim() {
@@ -968,7 +1009,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260924dev6' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260925dev7' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;

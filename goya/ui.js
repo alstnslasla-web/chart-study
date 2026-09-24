@@ -9,9 +9,16 @@
   const actionLabels = { long: '롱 진입', short: '숏 진입', close: '청산', wait: '관망', cancel: '예약 취소' };
   const reasonLabels = { manual: '청산 예약', opposite_signal: '반대 신호 청산', take_profit: '익절', stop_loss: '손절', liquidation: '단순 모형 강제청산' };
   const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 세 조건 완성까지 보유 · 장기 보유 실험', tp_sl: '가격 TP / SL로 청산' };
+  // CSV·안내문에 앱 내부 코드(long, open, after_data_gap 등)가 그대로 나가지 않게 쓰는 한글 이름. 파일 이름 앞 짧은 이름은 exitShort.
+  const sideNames = { long: '롱', short: '숏' };
+  const precisionNames = { open: '봉 시가 체결', bar_close_bound: '봉 내부 체결 · 마감 시각 표기' };
+  const skipNames = { position_open: '포지션 보유', position_exists: '포지션 보유', order_pending: '주문 대기', no_next_open: '다음 시가 없음', before_start: '시작 이전', data_gap: '자료 공백', simulation_finished: '연습 종료', duplicate_completion: '동시 조건 중복', invalid_completion: '유효하지 않은 조건', after_data_gap: '자료 공백으로 멈춘 뒤', after_insolvency: '자금 소진으로 멈춘 뒤', outside_closed_archive: '보관 기간 밖', end_no_next_bar: '기록 끝 · 다음 봉 없음', insolvent: '자금 소진', completion_bar_missing: '조건 봉 자료 없음' };
+  const exitShort = { opposite_smart: '반대신호청산', opposite_complete: '세조건보유', tp_sl: '가격익절손절' };
+  // 누른 버튼 바로 아래 안내 줄. 맨 위 알림 줄(#status)은 그대로 두고, 마지막으로 누른 곳의 줄에도 같은 문구를 쓴다. 흐린 버튼의 이유도 여기에 보인다.
+  const zoneNotes = { playback: ['playback-note', 'action-note on-dark'], decision: ['decision-feedback', 'action-note decision-feedback'], export: ['export-note', 'action-note'], month: ['export-month-note', 'action-note'], comparison: ['comparison-note', 'action-note'] };
   function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(14, Math.round(n * base / 16)); }
-  function applyFontSetting(font) { const f = ['M', 'L', 'XL'].includes(font) ? font : 'L'; const root = document.documentElement; if (!root || !root.dataset) return; if (root.dataset.font === f) return; root.dataset.font = f; if (state.snapshot) queueDraw(); if (state.month) drawEquity(); }
-  const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'bothrs', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '' };
+  function applyFontSetting(font) { const f = ['M', 'L', 'XL'].includes(font) ? font : 'L'; const root = document.documentElement; if (!root || !root.dataset) return; if (root.dataset.font === f) return; root.dataset.font = f; if (state.snapshot) queueDraw(); if (state.month) drawEquity(); queueScrollCheck(); }
+  const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'bothrs', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '', zoneNote: null, csvSaved: null, scrollFrame: 0 };
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, max = 2) => Number.isFinite(Number(n)) ? Number(n).toLocaleString('ko-KR', { minimumFractionDigits: max === 2 ? 2 : 0, maximumFractionDigits: max }) : '—';
   const price = n => fmt(n, n >= 100 ? 2 : n >= 1 ? 4 : 7);
@@ -20,6 +27,10 @@
     const text = new Date(Number(epoch) * 1000 + 9 * HOUR * 1000).toISOString();
     return (year ? text.slice(0, 10) : text.slice(5, 10)) + ' ' + text.slice(11, 16);
   }
+  // 표 칸 안 날짜('09-20')가 좁은 화면에서 '09-' / '20'으로 갈라지지 않게 묶는다.
+  const nwDates = html => html.replace(/\b\d{2}-\d{2}\b/g, '<span class="nw">$&</span>');
+  // 표의 시각 칸: 좁은 화면에서는 날짜와 시각 사이에서만 줄을 바꾼다. 'KST'는 칸마다 쓰지 않고 표 머리글에 한 번 적는다(휴대폰에서 손익 칸 자리를 넓힌다).
+  function timeCell(epoch, tail = '') { const [day, hour] = kst(epoch).split(' '); return hour ? '<span class="nw">' + day + '</span> <span class="nw">' + hour + escape(tail) + '</span>' : escape(day + tail); }
   function localDate(epoch) { return new Date(epoch * 1000 + 9 * HOUR * 1000).toISOString().slice(0, 16); }
   function epochOfInput(value) { return Date.parse(value + '+09:00') / 1000; }
   function readSettings() {
@@ -76,7 +87,7 @@
     if (!state.run || state.runStopped || state.mode === 'month') return;
     state.run.savedAt = new Date().toISOString();
     try { localStorage.setItem(RUN_KEY, JSON.stringify(state.run)); state.runWarning = ''; }
-    catch (_) { state.runWarning = '이 브라우저에서는 이어하기 저장이 제한됩니다. CSV로 보관하세요.'; }
+    catch (_) { state.runWarning = '이 기기에서는 이어하기 저장이 제한됩니다. CSV로 보관하세요.'; }
   }
   function recordActions(...actions) {
     if (!state.run || state.runStopped || state.mode === 'month') return;
@@ -149,6 +160,26 @@
   function tradeReason(trade) {
     return (reasonLabels[trade.reason] || trade.reason) + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
   }
+  function mappingLabel(mapping) { return mapping === 'bothrs' ? 'RS 교차 · 우리 연구 규칙' : mapping === 'rls' ? '비교 연구 RL / RS' : mapping === 'cross' ? '비교 연구 Cross 진입' : '미선택'; }
+  // 판단 기록(화면)과 기록 CSV가 같은 문구를 쓴다. 취소된 예약·자동 청산은 내가 누른 판단처럼 보이지 않게 따로 적는다.
+  function decisionText(d, i) {
+    const note = d.note || state.notes[i] || '';
+    if (d.status === 'cancelled') {
+      const auto = d.orderReason === 'opposite_signal';
+      return { action: actionLabels.cancel, reason: (d.reason === 'data_gap' ? '자료 공백으로 ' : d.reason === 'archive_end' ? '기록 끝이라 ' : '') + (auto ? '자동 청산' : actionLabels[d.action] || '주문') + ' 예약 취소' + (note ? (auto ? ' · ' : ' · 메모: ') + note : '') };
+    }
+    if (d.automatic) return { action: '자동 청산', reason: note || '반대 신호 확인 · 다음 봉 시가 청산 예약' };
+    return { action: actionLabels[d.action] || d.action, reason: note || (d.action === 'wait' ? '관망을 선택했습니다.' : '다음 봉 시가 체결 예약') };
+  }
+  // CSV 숫자 칸은 화면과 같은 자리로 표시만 반올림한다(계산값은 그대로). 쉼표·지수 표기 없이 써서 엑셀이 숫자로 읽는다.
+  function csvNum(n, digits = 2) { if (n === '' || n == null || !Number.isFinite(Number(n))) return ''; const text = Number(n).toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''); return text === '-0' ? '0' : text; }
+  const csvPrice = n => csvNum(n, n >= 100 ? 2 : n >= 1 ? 4 : 7);
+  // 시각 칸 끝에 ' KST'를 붙여 글자로 남긴다. 엑셀이 날짜로 바꾸면 기본 열 너비에서 '#######'로 보인다.
+  const csvTime = epoch => epoch == null || epoch === '' || !Number.isFinite(Number(epoch)) ? '' : kst(epoch, true) + ' KST';
+  const csvSide = side => sideNames[side] || side || '';
+  const bpsPct = bps => String(Number((Number(bps) / 100).toFixed(4)));
+  function costText(settings) { return '수수료 편도 ' + bpsPct(settings.feeBps) + '% · 슬리피지 편도 ' + bpsPct(settings.slippageBps) + '%'; }
+  function bracketText(settings) { return settings.takeProfitPct > 0 || settings.stopLossPct > 0 ? (settings.takeProfitPct > 0 ? '추가 익절 ' + settings.takeProfitPct + '%' : '추가 익절 꺼짐') + ' · ' + (settings.stopLossPct > 0 ? '추가 손절 ' + settings.stopLossPct + '%' : '추가 손절 꺼짐') : '추가 익절·손절 꺼짐'; }
   function analyzeCases() { state.scenarios = window.GoyaScenarios.analyze(state.data, $('cross-mapping').value); }
   function startCase(index) {
     if (!state.data) return;
@@ -223,6 +254,7 @@
     $('quiz-question').hidden = mode !== 'quiz'; $('workspace').hidden = mode === 'month'; $('review').hidden = mode === 'month'; $('monthly').hidden = mode !== 'month'; $('date-label').hidden = mode !== 'manual'; $('new-run').hidden = mode === 'month';
     $('new-run').textContent = mode === 'quiz' ? '이 조건부터 새 계좌로' : '새 연습 시작';
     $('next-ticker').disabled = !canMoveTicker();
+    queueScrollCheck();
   }
   function clearMonth() { state.month = null; $('month-results').hidden=true; $('month-empty').hidden=false; $('month-empty').innerHTML='실행을 누르면 전체 기간의 모의 결과가 표시됩니다.<br>실제 계좌의 수익이 아닌, 보관 시세에 체결 가정을 적용한 계산입니다.'; }
   function runMonth() {
@@ -241,17 +273,17 @@
   function renderMonth() {
     const {result:r,mapping,unusable} = state.month, s=r.summary, settings=r.settings;
     $('month-results').hidden=false; $('month-empty').hidden=true;
-    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + (mapping==='bothrs'?'RS 교차 · 우리 연구 규칙':mapping==='rls'?'비교 연구 RL / RS':'비교 연구 Cross 진입') + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
+    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + mappingLabel(mapping) + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
     renderExitComparison();
     const items=[['최종 평가 자산',fmt(s.finalEquity)+' USDT','초기 '+fmt(s.initialBalance)+' USDT'],['누적 순손익',(s.netPnl>0?'+':'')+fmt(s.netPnl)+' USDT','계좌 수익률 '+fmt(s.returnPct)+'% · 미실현 포함'],['완료 거래',s.tradeCount+'회','진입 체결 '+s.filledCount+'회'],['실현 순손익',fmt(s.realizedPnl)+' USDT','청산을 마친 거래 · 수수료 반영'],['미실현 평가손익',fmt(s.unrealizedNetPnl)+' USDT','열린 포지션 · 진입 수수료 반영'],['총 수수료',fmt(s.fees)+' USDT','진입·청산 수수료 합계'],['최대 낙폭',fmt(s.maxDrawdownPct)+'%','마감 봉 평가 자산 기준'],['건너뛴 조건',s.skippedCount+'개','보유·대기·사용 불가 등']];
     $('month-stats').innerHTML=items.map(([title,value,note],i)=>'<div><span>'+title+'</span><strong'+(i===1?' class="'+(s.netPnl>=0?'positive':'negative')+'"':'')+'>'+value+'</strong><small>'+note+'</small></div>').join('');
-    $('month-period').textContent=kst(r.coverage.from,true)+' ~ '+kst(r.coverage.to,true)+' KST';
+    // 기간 머리글은 첫 봉의 시작 시각부터 마지막 봉의 마감 시각까지다. 그래프 아래 날짜는 봉 마감 시각이라 기준을 함께 적는다.
+    $('month-period').textContent=kst(r.coverage.from,true)+' 봉부터 '+kst(r.coverage.to,true)+' 마감까지 KST · 그래프 날짜는 봉이 끝난 시각';
     const skips={};(r.skippedCompletions||[]).forEach(item=>skips[item.reason]=(skips[item.reason]||0)+1);
-    const skipNames={position_open:'포지션 보유',position_exists:'포지션 보유',order_pending:'주문 대기',no_next_open:'다음 시가 없음',before_start:'시작 이전',data_gap:'자료 공백',simulation_finished:'연습 종료',duplicate_completion:'동시 조건 중복',invalid_completion:'유효하지 않은 조건'};
     const skipsText=Object.entries(skips).map(([reason,count])=>(skipNames[reason]||reason)+' '+count+'개').join(' · ');
     $('month-result-note').textContent='세 조건 완성 '+(state.scenarios?state.scenarios.completions.length:'—')+'개 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족으로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
-    $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+kst(t.entryAt)+' →<br>'+kst(t.exitAt)+'</td><td>'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배<br><small>'+escape(tradeReason(t))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉: 손절 우선</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
-    drawEquity();
+    $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+timeCell(t.entryAt,' →')+'<br>'+timeCell(t.exitAt)+'</td><td><span class="nw">'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배</span><br><small>'+nwDates(escape(tradeReason(t)))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉: 손절 우선</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
+    drawEquity(); queueScrollCheck();
     try { localStorage.setItem(MONTH_KEY,JSON.stringify({version:1,mode:'monthly',ticker:r.ticker,mapping,settings,summary:s,coverage:r.coverage,savedAt:state.month.generatedAt})); } catch(_){}
   }
   function renderExitComparison() {
@@ -263,15 +295,21 @@
     $('exit-comparison-note').textContent = (openEnded ? '한쪽 이상이 청산 없이 포지션을 보유한 채 기록이 끝나 실현 손익으로는 비교할 수 없습니다. 미청산 평가액은 참고값이며 우위를 정하지 않습니다.' : tied ? '두 청산 방식의 순손익이 같습니다.' : exitLabels[best.settings.exitMode] + ' 방식의 이 기간 순손익이 ' + fmt(Math.abs(difference)) + ' USDT 더 높습니다.') + ' 같은 종목·기간·증거금·레버리지·비용으로 비교했습니다. 미청산 포지션은 마지막 종가로 평가하며, 순손익이 높아도 실현 수익을 뜻하지는 않습니다. 과거 한 달 비교이며 앞으로의 우열은 알 수 없습니다.';
     $('exit-comparison').innerHTML = list.map(item => {
       const s = item.summary, stats = item.snapshot.stats, selected = item.settings.exitMode === state.month.result.settings.exitMode;
-      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td>' + escape(exitLabels[item.settings.exitMode]) + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : item.summary.openPosition ? '<span class="comparison-badge">청산 없음 · 보유 지속</span>' : tied ? '<span class="comparison-badge">동일 결과</span>' : '') + '</td><td><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td>' + fmt(stats.realizedPnl) + '<small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td>' + s.tradeCount + '회<small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td><td><button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '아래 결과 표시 중' : '이 방식 결과 보기') + '</button></td></tr>';
+      // 선택 버튼은 방식 이름 바로 아래에 둔다(좁은 화면에서 이름과 버튼이 함께 보이게). data-label 은 좁은 화면에서 칸 이름으로 보인다.
+      // 완료 거래가 있는데 마지막 포지션만 열려 있으면 '청산 없음'이 아니라 '마지막 포지션 보유 중'이다.
+      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td data-label="청산 시점"><span class="comparison-name">' + escape(exitLabels[item.settings.exitMode]) + '</span>' + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : s.openPosition ? '<span class="comparison-badge">' + (s.tradeCount > 0 ? '마지막 포지션 보유 중' : '청산 없음 · 보유 지속') + '</span>' : tied ? '<span class="comparison-badge">동일 결과</span>' : '') + '<button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '아래 결과 표시 중' : '이 방식 결과 보기') + '</button></td><td data-label="순손익 · 평가 포함"><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td data-label="실현 / 미실현"><span>' + fmt(stats.realizedPnl) + '</span><small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td data-label="완료 거래"><span>' + s.tradeCount + '회</span><small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td></tr>';
     }).join('');
   }
   function showComparisonMode(mode) {
     if (!state.month) return;
     const result = state.month.comparison.find(item => item.settings.exitMode === mode);
     if (!result) return;
-    state.month.result = result; $('exit-mode').value = mode; renderMonth();
-    notify('한 달 결과는 ' + exitLabels[mode] + ' 방식으로 표시합니다. 진행 중인 연습 계좌는 유지되며, 새 계좌를 시작할 때 이 설정이 적용됩니다.');
+    // 결과 표시만 바꾼다. 위 연습 설정(#exit-mode)은 건드리지 않는다(자유 연습·새 계좌가 말없이 ②로 시작하지 않게).
+    state.month.result = result; renderMonth();
+    const scroller = $('comparison-scroll'); if (scroller) scroller.scrollLeft = 0;
+    // 누른 버튼이 다시 그려져 사라지므로 키보드 초점을 비교표 제목으로 옮긴다(화면은 움직이지 않는다).
+    const heading = $('comparison-heading'); if (heading && typeof heading.focus === 'function') { heading.setAttribute('tabindex', '-1'); try { heading.focus({ preventScroll: true }); } catch (_) {} }
+    notify('아래 한 달 결과를 ' + exitLabels[mode] + ' 방식으로 보여 드립니다. 위 연습 설정(포지션 정리 기준)은 바뀌지 않습니다.', '', 'comparison');
   }
   function drawEquity() {
     if(!state.month||state.mode!=='month')return;
@@ -293,19 +331,22 @@
   }
   function exportMonth() {
     if(!state.month)return;
-    const {result:r,mapping,unusable}=state.month;
-    const rows=[['구분','종목','방향','진입시각_KST','청산시각_KST','레버리지','증거금','명목금액','진입가','청산가','수수료','순손익_USDT','청산이유','비고','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST']];
-    r.trades.forEach(t=>rows.push(['완료거래',r.ticker,t.side,kst(t.entryAt,true),kst(t.exitAt,true),r.settings.leverage,t.margin,t.notional,t.entryPrice,t.exitPrice,t.fees,t.netPnl,t.reason,t.ambiguous?'동일 봉 익절·손절: 손절 우선':t.exitTimePrecision,r.settings.exitMode,t.exitTrigger?t.exitTrigger.label:'',t.exitTrigger?kst(t.exitTrigger.time,true):'',t.exitTrigger?kst(t.exitTrigger.availableAt,true):'']));
-    if(r.summary.openPosition){const p=r.summary.openPosition;rows.push(['미청산',r.ticker,p.side,kst(p.entryAt,true),'',r.settings.leverage,p.margin,p.notional,p.entryPrice,'',p.entryFee,'','미청산 평가','미실현 '+p.unrealizedPnl]);}
-    (r.skippedCompletions||[]).forEach(item=>rows.push(['제외조건',r.ticker,item.completion.direction,kst(item.completion.availableAt,true),'',r.settings.leverage,'','','','','','',item.reason,'']));
-    (unusable||[]).forEach(item=>rows.push(['사전제외',r.ticker,item.direction||'',kst(item.availableAt,true),'',r.settings.leverage,'','','','','','',item.reason||'자료 부족','']));
-    rows.push(['요약',r.ticker,'',kst(r.coverage.from,true),kst(r.coverage.to,true),r.settings.leverage,'','','','',r.summary.fees,r.summary.netPnl,'최종평가 '+r.summary.finalEquity,'규칙 '+mapping+' / 증거금'+r.settings.allocationPct+'% / TP'+r.settings.takeProfitPct+'% / SL'+r.settings.stopLossPct+'% / 수수료4bps / 슬리피지2bps / 펀딩제외 / 단순격리청산']);
-    rows[rows.length-1].push(r.settings.exitMode,'','','');
-    state.month.comparison.forEach(item=>rows.push(['청산방식비교',r.ticker,'',kst(item.coverage.from,true),kst(item.coverage.to,true),item.settings.leverage,'','','','',item.summary.fees,item.summary.netPnl,'실현 '+item.summary.realizedPnl+' / 미실현 '+item.summary.unrealizedNetPnl,'미청산 포함 최종평가 / 과거 기간 비교',item.settings.exitMode,'','','']));
-    rows.forEach((row,index)=>{if(index && row.length<15){while(row.length<14)row.push('');row.push(r.settings.exitMode,'','','');}});
-    downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+r.settings.leverage+'배_'+r.settings.exitMode+'.csv',$('export-month'),'');
+    const {result:r,mapping,unusable}=state.month, st=r.settings, mode=st.exitMode, lev=st.leverage;
+    // 청산모드(설정 코드) 열은 그대로 두고 맨 끝 '청산방식' 열에 한글 이름을 적는다. 숫자 칸은 화면과 같은 자리로만 반올림한다.
+    const trigger=x=>x?[x.label,csvTime(x.time),csvTime(x.availableAt)]:['','',''], tail=m=>[m,'','','',exitLabels[m]||m], notEntered='진입 안 함 · 진입시각 칸은 조건 확인 시각';
+    const period=res=>'진입·청산 칸은 계산 기간 시작·끝 · 순손익은 미실현 포함'+(res.coverage.completeToArchive?'':' · '+(res.coverage.finishedReason==='data_gap'?'자료 공백으로 ':res.coverage.finishedReason==='insolvent'?'모의 자금 소진으로 ':'')+csvTime(res.coverage.to)+'에서 계산 중단');
+    const rows=[['구분','종목','방향','진입시각_KST','청산시각_KST','레버리지','증거금','명목금액','진입가','청산가','수수료','순손익_USDT','청산이유','비고','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST','청산방식']];
+    r.trades.forEach(t=>rows.push(['완료거래',r.ticker,csvSide(t.side),csvTime(t.entryAt),csvTime(t.exitAt),lev,csvNum(t.margin),csvNum(t.notional),csvPrice(t.entryPrice),csvPrice(t.exitPrice),csvNum(t.fees),csvNum(t.netPnl),tradeReason(t),t.ambiguous?'동일 봉 익절·손절: 손절 우선':precisionNames[t.exitTimePrecision]||t.exitTimePrecision,mode,...trigger(t.exitTrigger),exitLabels[mode]||mode]));
+    if(r.summary.openPosition){const p=r.summary.openPosition;rows.push(['미청산',r.ticker,csvSide(p.side),csvTime(p.entryAt),'',lev,csvNum(p.margin),csvNum(p.notional),csvPrice(p.entryPrice),'',csvNum(p.entryFee),'','미청산 평가','미실현(진입 수수료 빼기 전) '+fmt(p.unrealizedPnl)+' USDT · 진입 수수료 반영 '+fmt(r.summary.unrealizedNetPnl)+' USDT',...tail(mode)]);}
+    (r.skippedCompletions||[]).forEach(item=>rows.push(['제외조건',r.ticker,csvSide(item.completion.direction),csvTime(item.completion.availableAt),'',lev,'','','','','','',skipNames[item.reason]||item.reason,notEntered,...tail(mode)]));
+    (unusable||[]).forEach(item=>rows.push(['사전제외',r.ticker,csvSide(item.direction),csvTime(item.availableAt),'',lev,'','','','','','',item.reason?skipNames[item.reason]||item.reason:'자료 부족',notEntered,...tail(mode)]));
+    rows.push(['요약',r.ticker,'',csvTime(r.coverage.from),csvTime(r.coverage.to),lev,'','','','',csvNum(r.summary.fees),csvNum(r.summary.netPnl),'최종평가 '+fmt(r.summary.finalEquity)+' USDT',period(r)+' / '+mappingLabel(mapping)+' / 증거금 '+st.allocationPct+'% / '+bracketText(st)+' / '+costText(st)+' / 펀딩비 제외 / 단순 격리 청산 모형',...tail(mode)]);
+    state.month.comparison.forEach(item=>rows.push(['청산방식비교',r.ticker,'',csvTime(item.coverage.from),csvTime(item.coverage.to),item.settings.leverage,'','','','',csvNum(item.summary.fees),csvNum(item.summary.netPnl),'실현 '+fmt(item.summary.realizedPnl)+' USDT / 미실현 '+fmt(item.summary.unrealizedNetPnl)+' USDT(진입 수수료 반영)',period(item)+' / 과거 기간 비교',...tail(item.settings.exitMode)]));
+    // 파일 이름: 설정 코드 앞에 짧은 한글 이름, 끝에 저장 시각(KST)을 붙여 설정을 바꿔 다시 저장해도 이름이 겹치지 않게 한다.
+    downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+lev+'배_'+(exitShort[mode]?exitShort[mode]+'_':'')+mode+'_저장'+kst(Date.now()/1000).replace(/[-:]/g,'').replace(' ','-')+'.csv',$('export-month'),'한 달 결과를 CSV 파일로 저장했습니다.');
   }
-  function csvText(rows){function cell(v){let text=String(v==null?'':v);if(/^[=+@\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}return '\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n');}
+  // 엑셀 수식 실행 막기: = + - @ 탭·줄바꿈으로 시작하는 글자 앞에 작은따옴표를 붙인다('- LL 봤음'이 #NAME?이 되지 않게). 음수 손익 같은 순수 숫자는 그대로 둔다.
+  function csvText(rows){function cell(v){let text=String(v==null?'':v);if(/^[=+\-@\t\r\n]/.test(text)&&!/^-?\d+(\.\d+)?$/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}return '\uFEFF'+rows.map(r=>r.map(cell).join(',')).join('\r\n');}
   function blobDownload(name,text){const blob=new Blob([text],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   // 앱(WebView) 안에서는 window.cbSave 로 네이티브에 저장을 맡기고 같은 id 의 응답을 기다린다. 브라우저에서는 blob 내려받기.
   const SAVE_TIMEOUT_MS = 15000, SAVE_LATE_MS = 5 * 60 * 1000;
@@ -321,8 +362,8 @@
     if (!pending) return;
     pendingSaves.delete(reply.id); clearTimeout(pending.timer);
     const result = saveResult(reply.ok === true, true, typeof reply.fileName === 'string' ? reply.fileName : '', typeof reply.message === 'string' ? reply.message : '');
-    // 시간 초과 뒤 늦게 온 응답(옛 기기의 저장 위치 선택 화면)도 결과 문구로 알린다.
-    if (pending.late) notify(result.message || (result.ok ? '파일을 저장했어요.' : '파일을 저장하지 못했어요.'), result.ok ? 'success' : 'error');
+    // 시간 초과 뒤 늦게 온 응답(옛 기기의 저장 위치 선택 화면)도 결과 문구로 알린다(누른 버튼 아래 줄에도).
+    if (pending.late) { if (pending.lateDone) pending.lateDone(result); else notify(result.message || (result.ok ? '파일을 저장했어요.' : '파일을 저장하지 못했어요.'), result.ok ? 'success' : 'error'); }
     else pending.done(result);
   }
   function listenNativeSaves(bridge) {
@@ -331,7 +372,7 @@
     if (typeof bridge.addEventListener === 'function') bridge.addEventListener('message', onNativeSaveReply); else bridge.onmessage = onNativeSaveReply;
   }
   function inAndroidApp() { return typeof navigator !== 'undefined' && /ChartBaeumteoApp\//.test(navigator.userAgent || ''); }
-  function saveTextFile(name, text, done) {
+  function saveTextFile(name, text, done, lateDone) {
     done = typeof done === 'function' ? done : () => {};
     const bridge = nativeSaveBridge();
     // 앱(APK) 안인데 저장 통로가 없으면(아주 오래된 WebView) 내려받기가 조용히 막히므로, 성공처럼 보이지 않게 바로 알린다.
@@ -339,7 +380,7 @@
     if (!bridge) { blobDownload(name, text); done(saveResult(true, false, name, '')); return; }
     listenNativeSaves(bridge);
     const id = 'cb-save-' + Date.now() + '-' + (++saveSeq);
-    const pending = { done, late: false, timer: 0 };
+    const pending = { done, late: false, timer: 0, lateDone: typeof lateDone === 'function' ? lateDone : null };
     pending.timer = setTimeout(() => {
       pending.late = true; pending.timer = setTimeout(() => pendingSaves.delete(id), SAVE_LATE_MS);
       done(saveResult(false, true, '', '저장 결과를 받지 못했어요. 저장 화면이 열려 있으면 마저 진행하고, 아니면 잠시 뒤 다시 눌러 주세요.'));
@@ -348,23 +389,77 @@
     try { bridge.postMessage(JSON.stringify({ id, name, mime: 'text/csv', text })); }
     catch (_) { pendingSaves.delete(id); clearTimeout(pending.timer); done(saveResult(false, true, '', '앱에 저장 요청을 보내지 못했어요.')); }
   }
-  // 저장 버튼을 잠근 채 저장하고, 결과에 따라 안내한다. successText 는 blob 저장 때 종전 문구, 네이티브 저장 때는 앱 응답 문구와 함께 보인다.
+  // 저장 버튼을 잠근 채 저장하고, 결과를 맨 위 알림 줄과 누른 버튼 바로 아래 줄에 함께 알린다(화면을 다른 곳으로 옮기지 않는다).
+  // 웹(blob 내려받기)은 successText 와 파일 이름·다운로드 폴더 안내를, 앱(APK)은 앱이 돌려준 문구(저장 위치 포함)를 쓴다.
   function downloadRows(rows, name, button, successText) {
     if (state.saving) return;
+    const zone = button && button.id === 'export' ? 'export' : button && button.id === 'export-month' ? 'month' : null, s = zone === 'export' ? state.snapshot : null;
+    const at = s ? { engine: state.engine, index: s.index, decisions: s.decisions.length, trades: s.trades.length } : null;
     state.saving = true; if (button) button.disabled = true;
+    notify('파일을 저장하고 있어요…', '', zone);
+    const report = result => {
+      if (!result.ok) notify(result.message || '파일을 저장하지 못했어요.', 'error', zone);
+      else {
+        const saved = result.fileName || name;
+        if (at) { state.csvSaved = { ...at, name: saved }; if (state.snapshot) saveSummary(); }
+        notify(result.native ? result.message || '파일을 저장했어요.' : (successText ? successText + ' ' : '') + '다운로드(내려받기) 폴더에서 “' + saved + '” 파일을 찾아 보세요.', 'success', zone);
+      }
+      revealZone(zone);
+    };
     const finish = result => {
       state.saving = false;
       if (button) button.disabled = button.id === 'export' ? exportDisabled() : false;
-      if (!result.ok) { notify(result.message || '파일을 저장하지 못했어요.', 'error'); try { $('status').scrollIntoView({ block: 'center' }); } catch (_) {} }
-      else if (result.native) notify(result.message || '파일을 저장했어요.', 'success');
-      else if (successText) notify(successText, 'success');
+      report(result);
     };
-    try { saveTextFile(name, csvText(rows), finish); } catch (_) { finish(saveResult(false, false, '', '파일을 저장하지 못했어요.')); }
+    try { saveTextFile(name, csvText(rows), finish, report); } catch (_) { finish(saveResult(false, false, '', '파일을 저장하지 못했어요.')); }
   }
   function exportDisabled() { const s = state.snapshot || (state.engine && state.engine.snapshot && state.engine.snapshot()); return !s || (!s.decisions.length && !s.trades.length && !s.position); }
-  function notify(text, kind) { $('status').textContent = text + (state.runWarning ? ' ' + state.runWarning : ''); $('status').className = 'status' + (kind ? ' ' + kind : ''); }
+  // zone: 누른 버튼 줄(playback·decision·export·month). 주면 그 줄에도 같은 문구(noteText 가 있으면 그 문구)를 쓰고, 안 주면 버튼 줄의 지난 문구를 지운다.
+  function notify(text, kind, zone, noteText) {
+    const warning = state.runWarning ? ' ' + state.runWarning : '';
+    $('status').setAttribute('aria-live', zone && zoneNotes[zone] ? 'off' : 'polite'); // 버튼 아래 줄이 읽어 주므로 맨 위 줄은 조용히
+    $('status').textContent = text + warning; $('status').className = 'status' + (kind ? ' ' + kind : '');
+    state.zoneNote = zone && zoneNotes[zone] ? { zone, text: (noteText || text) + warning, kind: kind || '' } : null;
+    renderNotes();
+  }
+  function decisionWhere() { return window.innerWidth > 1000 ? '오른쪽' : '아래'; }
+  function finishNote(s) { return ({ data_gap: '다음 시간봉이 누락되어', insolvent: '모의 자금이 소진되어' }[s.finishReason] || '보관 기록의 끝이라') + ' 더 진행할 수 없습니다.' + (exportDisabled() ? '' : ' 판단 기록은 아래 “기록 CSV 저장”으로 보관할 수 있어요.'); }
+  // 흐린(누를 수 없는) 버튼의 이유. 터치폰에서는 title 이 보이지 않으므로 버튼 줄 아래에 글로 보인다(aria-describedby 로 버튼과 연결).
+  function zoneReason(zone) {
+    const s = state.snapshot;
+    if (!s || state.mode === 'month') return '';
+    if (zone === 'playback') return s.finished ? finishNote(s) : state.mode === 'quiz' && !state.answered ? decisionWhere() + ' “지금의 판단”에서 롱·숏·관망을 먼저 고르세요. 고른 다음부터 가격을 진행할 수 있어요.' : '';
+    if (zone === 'export') return !state.saving && exportDisabled() ? '판단을 한 번 기록하면 CSV로 저장할 수 있어요.' : '';
+    return '';
+  }
+  // 버튼을 직접 눌렀을 때만 그 아래 줄이 화면 밖이면 살짝 올려 보인다(자동 진행 중에는 화면을 움직이지 않는다).
+  function revealZone(zone) { const el = zone && zoneNotes[zone] ? $(zoneNotes[zone][0]) : null; if (!el || !el.textContent || typeof el.scrollIntoView !== 'function') return; try { el.scrollIntoView({ block: 'nearest' }); } catch (_) {} }
+  function renderNotes() {
+    Object.entries(zoneNotes).forEach(([zone, [id, base]]) => {
+      const el = $(id); if (!el) return;
+      const own = state.zoneNote && state.zoneNote.zone === zone ? state.zoneNote : null, text = own ? own.text : zoneReason(zone);
+      if (el.textContent !== text) el.textContent = text;
+      el.className = base + (own && own.kind ? ' ' + own.kind : '');
+    });
+  }
+  // 좁은 화면에서 표가 넘치면 표 위에 '옆으로 밀어 …' 안내를 보이고 가장자리 그림자(.is-scrollable)를 붙인다.
+  function markScroll(box, hint, text) {
+    if (!box || !hint) return;
+    const over = box.scrollWidth - box.clientWidth > 2;
+    if (box.classList) box.classList.toggle('is-scrollable', over);
+    if (over && hint.textContent !== text) hint.textContent = text;
+    hint.hidden = !over;
+  }
+  function checkScrolls() {
+    state.scrollFrame = 0;
+    markScroll($('comparison-scroll'), $('comparison-hint'), '옆으로 밀어 나머지 칸 보기 →');
+    markScroll($('month-trades-scroll'), $('month-trades-hint'), '옆으로 밀어 손익 보기 →');
+    const trades = !$('trades-panel').hidden;
+    markScroll($(trades ? 'trades-panel' : 'journal-panel'), $('review-hint'), trades ? '옆으로 밀어 손익 보기 →' : '옆으로 밀어 이유 보기 →');
+  }
+  function queueScrollCheck() { if (state.scrollFrame || typeof requestAnimationFrame !== 'function') return; state.scrollFrame = requestAnimationFrame(checkScrolls); }
   function stop() { if (state.timer) clearInterval(state.timer); state.timer = null; $('play').textContent = '▶ 자동 진행'; $('play').setAttribute('aria-pressed', 'false'); }
-  function safeRun(fn) { try { return fn(); } catch (error) { stop(); notify(error.message || '연습 중 오류가 발생했습니다.', 'error'); return null; } }
+  function safeRun(fn, zone) { try { return fn(); } catch (error) { stop(); notify(error.message || '연습 중 오류가 발생했습니다.', 'error', zone); revealZone(zone); return null; } }
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -447,21 +542,27 @@
       const next = state.engine.submit(action, note);
       recordActions({ k: 's', a: action, n: note });
       state.notes[next.decisions.length - 1] = note;
+      let graded = '';
       if (state.mode === 'quiz' && !state.answered) {
         state.answered = true;
         const scenario = state.scenarios.cases[state.caseIndex];
         const expected = scenario.direction === 'long' ? '롱' : '숏';
-        $('quiz-feedback').textContent = action === 'close' ? '기존 포지션의 청산을 예약했습니다. 이번 조건의 규칙상 방향은 ' + expected + '이며, 다음 봉에서 청산 결과를 확인합니다.' : action === 'wait' ? '관망을 선택했습니다. 이 조건의 규칙상 방향은 ' + expected + '입니다. 다음 차트를 보며 보유 또는 관망 판단을 복기하세요.' : action === scenario.direction ? '규칙상 방향과 일치합니다: ' + expected + '. 이제 다음 봉부터 실제 과거 가격을 확인하세요. 방향 일치가 수익을 보장하지는 않습니다.' : '이 조건의 규칙상 방향은 ' + expected + '입니다. 선택한 방향으로 모의 체결하고 실제 가격의 결과를 비교해 보세요.';
+        graded = action === 'close' ? '기존 포지션의 청산을 예약했습니다. 이번 조건의 규칙상 방향은 ' + expected + '이며, 다음 봉에서 청산 결과를 확인합니다.' : action === 'wait' ? '관망을 선택했습니다. 이 조건의 규칙상 방향은 ' + expected + '입니다. 다음 차트를 보며 보유 또는 관망 판단을 복기하세요.' : action === scenario.direction ? '규칙상 방향과 일치합니다: ' + expected + '. 이제 다음 봉부터 실제 과거 가격을 확인하세요. 방향 일치가 수익을 보장하지는 않습니다.' : '이 조건의 규칙상 방향은 ' + expected + '입니다. 선택한 방향으로 모의 체결하고 실제 가격의 결과를 비교해 보세요.';
+        $('quiz-feedback').textContent = graded;
         $('quiz-feedback').classList.add('answered');
       }
       $('decision-note').value = ''; render(next);
-      notify(action === 'wait' ? '관망 판단을 기록했습니다. 다음 봉을 보며 판단을 이어가세요.' : (actionLabels[action] || action) + '을 예약했습니다. 다음 1시간 진행 시 다음 봉 시가에 모의 체결합니다.', 'success');
-    });
+      // 채점 문구는 맨 위 질문 카드에 있어 휴대폰에서는 화면 밖이므로, 누른 판단 카드 안에도 같은 문구를 보인다.
+      notify(action === 'wait' ? '관망 판단을 기록했습니다(판단 기록 ' + next.decisions.length + '개). 다음 봉을 보며 판단을 이어가세요.' : (actionLabels[action] || action) + '을 예약했습니다. 다음 1시간 진행 시 다음 봉 시가에 모의 체결합니다.', 'success', 'decision', graded);
+      revealZone('decision');
+    }, 'decision');
   }
-  function advance(count) {
+  function tradeNote(t) { return (reasonLabels[t.reason] || '청산') + ' 처리 · 이번 거래 순손익 ' + fmt(t.netPnl) + ' USDT' + (t.ambiguous ? ' · 같은 봉 익절·손절 도달: 손절 우선' : ''); }
+  // zone: 진행을 누른 곳(재생 줄이면 'playback'). 질문 카드의 진행 버튼은 바로 위 알림 줄만 쓴다.
+  function advance(count, zone) {
     if (!state.engine || state.snapshot.finished || (state.mode === 'quiz' && !state.answered)) return;
     safeRun(() => {
-      const prior = state.snapshot.trades.length;
+      const before = state.snapshot, prior = before.trades.length;
       const next = state.mode === 'quiz' ? nextCaseIndex() : -1;
       const nextItem = next >= 0 ? state.scenarios.cases[next] : null;
       const steps = nextItem ? Math.min(count, nextItem.index - state.snapshot.index) : count;
@@ -471,22 +572,27 @@
        if (result.finishReason === 'data_gap') actions.push({ k: 'a', n: 0 });
        recordActions(...actions);
        render(result);
-      if (nextItem && state.snapshot.index === nextItem.index && !state.snapshot.finished) {
+      // 진행 중에 생긴 체결·청산을 멈춘 이유 앞에 함께 알린다(새 질문이나 기록 끝에서 멈춰도 손익을 놓치지 않게).
+      const s = state.snapshot, added = s.trades.length - prior, last = s.trades[s.trades.length - 1];
+      const closed = added > 0 ? (added > 1 ? '거래 ' + added + '건 청산 · 마지막 거래 ' : '') + tradeNote(last) : '';
+      const opened = s.position && (!before.position || before.position.entryAt !== s.position.entryAt) ? (s.position.side === 'long' ? '롱' : '숏') + ' 진입 체결 · 진입가 ' + price(s.position.entryPrice) : '';
+      const reserved = s.pending && s.pending.reason === 'opposite_signal' && !(before.pending && before.pending.reason === 'opposite_signal') ? '반대 ' + (s.pending.trigger && s.pending.trigger.label || '신호') + ' 확인 · 다음 봉 시가에 자동 청산 예약' : '';
+      const done = [closed, opened, reserved].filter(Boolean).join(' · ');
+      if (nextItem && s.index === nextItem.index && !s.finished) {
         presentCase(next);
-        notify('새 세 조건이 완성되어 진행을 멈췄습니다. 누적 자산과 기존 포지션을 유지한 채 이번 판단을 선택하세요.');
+        notify((done ? done + '. ' : '') + '새 세 조건이 완성되어 진행을 멈췄습니다. 누적 자산과 기존 포지션은 그대로입니다. 위 질문을 읽고 ' + decisionWhere() + ' “지금의 판단”에서 고르세요.', '', zone);
         return;
       }
-      if (state.snapshot.finished) showFinish();
-      else if (state.snapshot.trades.length > prior) {
-        const trade = state.snapshot.trades[state.snapshot.trades.length - 1];
-        notify((reasonLabels[trade.reason] || '청산') + ' 처리 · 이번 거래 순손익 ' + fmt(trade.netPnl) + ' USDT' + (trade.ambiguous ? ' · 같은 봉 익절·손절 도달: 손절 우선' : ''), trade.netPnl >= 0 ? 'success' : '');
-      } else notify(kst(state.snapshot.cutoff) + ' KST까지 확인했습니다. 새로운 신호와 가격을 관찰하세요.');
-    });
+      if (s.finished) showFinish(zone, done);
+      else if (done) notify(done, added > 0 && last.netPnl >= 0 ? 'success' : '', zone);
+      else notify(kst(s.cutoff) + ' KST까지 확인했습니다. 새로운 신호와 가격을 관찰하세요.', '', zone);
+    }, zone);
   }
-  function showFinish() {
+  function showFinish(zone, done) {
     stop(); const s = state.snapshot;
-    const reason = s.finishReason === 'data_gap' ? '다음 시간봉이 누락되어 여기에서 연습을 멈췄습니다. 대기 주문은 취소했습니다.' : s.finishReason === 'insolvent' ? '모의 자금이 소진되어 연습을 종료했습니다.' : '보관 기록의 끝에 도착했습니다. 판단 기록을 저장하고 복기해 보세요.';
-    notify(reason + (s.position ? ' 미청산 포지션은 마지막 종가로 평가합니다.' : ''), s.finishReason === 'data_gap' ? 'error' : 'success');
+    const lastDecision = s.decisions[s.decisions.length - 1], gapCancelled = !!lastDecision && lastDecision.status === 'cancelled' && lastDecision.reason === 'data_gap';
+    const reason = s.finishReason === 'data_gap' ? '다음 시간봉이 누락되어 여기에서 연습을 멈췄습니다.' + (gapCancelled ? ' 대기 주문은 취소했습니다.' : '') : s.finishReason === 'insolvent' ? '모의 자금이 소진되어 연습을 종료했습니다.' : '보관 기록의 끝에 도착했습니다. 판단 기록을 저장하고 복기해 보세요.';
+    notify((done ? done + '. ' : '') + reason + (s.position ? ' 미청산 포지션은 마지막 종가로 평가합니다.' : ''), s.finishReason === 'data_gap' ? 'error' : 'success', zone);
   }
   function render(s) {
     state.snapshot = s;
@@ -500,22 +606,28 @@
     $('practice-summary').textContent = '내 판단의 누적 결과 · 초기 ' + fmt(s.settings.initialBalance) + ' USDT → 평가 자산 ' + fmt(s.equity) + ' USDT · 수익률 ' + fmt(s.stats.returnPct) + '% · 완료 거래 ' + s.trades.length + '회 · 수수료 ' + fmt(s.stats.fees) + ' USDT. 한 달 자동 전략 결과와 별도로 계산합니다.';
     const p = s.position;
     $('position-state').innerHTML = p ? '<span>' + (p.side === 'long' ? '롱' : '숏') + ' 보유 · ' + fmt(p.qty, 6) + '개</span><small>진입 ' + price(p.entryPrice) + ' · 미실현 ' + fmt(p.unrealizedPnl) + ' USDT<br>익절 ' + (p.takeProfit == null ? '꺼짐' : price(p.takeProfit)) + ' / 손절 ' + (p.stopLoss == null ? '꺼짐' : price(p.stopLoss)) + '</small>' : '보유 포지션 없음';
-    $('pending-state').hidden = !s.pending;
-    if (s.pending) $('pending-state').textContent = (s.pending.reason === 'opposite_signal' ? '반대 ' + (s.pending.trigger && s.pending.trigger.label || '신호') + ' 확인 · 자동 청산' : actionLabels[s.pending.action] || s.pending.action) + ' 대기 · ' + kst(s.pending.expectedFillTime) + '에 시작하는 다음 봉에서 체결';
+    renderPending(s);
     $('long').disabled = $('short').disabled = s.finished || !!s.pending || !!p;
     $('close').disabled = s.finished || !!s.pending || !p;
     $('wait').disabled = s.finished;
     ['next-hour', 'next-six', 'play'].forEach(id => $(id).disabled = s.finished || (state.mode === 'quiz' && !state.answered));
     $('next-case').disabled = s.finished || !state.answered || nextCaseIndex() < 0;
     $('next-ticker').disabled = !canMoveTicker();
-    $('next-ticker').title = p ? '보유 포지션을 정리한 뒤 이동할 수 있습니다' : s.pending ? '대기 주문이 처리된 뒤 이동할 수 있습니다' : '';
+    $('next-ticker').title = p ? '보유 포지션을 정리한 뒤 이동할 수 있습니다' : s.pending ? '대기 주문이 처리된 뒤 이동할 수 있습니다' : state.mode === 'quiz' && state.answered && nextCaseIndex() >= 0 ? '이 종목 조건을 모두 마친 뒤 이동할 수 있습니다' : '';
     $('finish-month').disabled = s.finished || !state.answered;
     $('export').disabled = state.saving || exportDisabled();
     $('order-note').innerHTML = '증거금 ' + fmt(s.settings.allocationPct, 1) + '% · 레버리지 ' + s.settings.leverage + '배<br>' + escape(exitDescription(s.settings)) + '<br>반대 신호 확인 뒤 다음 봉 시가 청산 · 자동 전환 없음';
     if (p) $('position-state').innerHTML += '<small>증거금 ' + fmt(p.margin) + ' / 명목금액 ' + fmt(p.notional) + ' USDT</small>';
     $('progress').textContent = (s.index + 1) + ' / ' + state.data.bars.length + '봉 확인';
     updateReadout(state.hover == null ? s.current : state.chart && state.chart.bars[state.hover] || s.current);
-    renderRule(); renderJournal(); drawChart(); saveSummary();
+    renderRule(); renderJournal(); drawChart(); saveSummary(); renderNotes(); queueScrollCheck();
+  }
+  // 예약 뒤 무엇을 눌러야 체결되는지 대기 상자에 함께 적는다(휴대폰에서는 '다음 1시간' 버튼이 판단 카드보다 위에 있다).
+  function renderPending(s) {
+    $('pending-state').hidden = !s.pending;
+    if (!s.pending) return;
+    const where = (window.innerWidth > 1000 ? '왼쪽' : '위쪽') + ' 차트 아래의 “다음 1시간\u00a0→”을 누르면 체결됩니다.';
+    $('pending-state').textContent = (s.pending.reason === 'opposite_signal' ? '반대 ' + (s.pending.trigger && s.pending.trigger.label || '신호') + ' 확인 · 자동 청산' : actionLabels[s.pending.action] || s.pending.action) + ' 대기 · ' + kst(s.pending.expectedFillTime) + '에 시작하는 다음 봉에서 체결 · ' + (state.mode === 'quiz' && !state.answered ? '이번 판단을 고른 뒤 ' : '') + where;
   }
   function renderRule() {
     const s = state.snapshot, mapping = $('cross-mapping').value;
@@ -544,31 +656,35 @@
   function renderJournal() {
     const s = state.snapshot;
     $('journal-count').textContent = s.decisions.length;
-    $('journal-body').innerHTML = s.decisions.length ? s.decisions.map((d, i) => ({ d, i })).reverse().map(({d,i}) => '<tr><td>' + escape(kst(d.time)) + ' KST</td><td>' + escape(actionLabels[d.action] || d.action) + '</td><td>' + escape(d.note || state.notes[i] || (d.status === 'cancelled' ? '자료 공백으로 예약 취소' : d.action === 'wait' ? '관망을 선택했습니다.' : '다음 봉 시가 체결 예약')) + '</td></tr>').join('') : '<tr><td colspan="3" class="empty-row">아직 판단 기록이 없습니다. 차트를 보고 롱·숏·관망을 선택해 보세요.</td></tr>';
+    $('journal-body').innerHTML = s.decisions.length ? s.decisions.map((d, i) => ({ d, i })).reverse().map(({d,i}) => { const text = decisionText(d, i); return '<tr><td>' + timeCell(d.time) + '</td><td>' + escape(text.action) + '</td><td>' + escape(text.reason) + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="empty-row">아직 판단 기록이 없습니다. 차트를 보고 롱·숏·관망을 선택해 보세요.</td></tr>';
     const rows = [];
     s.trades.forEach(t => { rows.push({ time: t.entryAt, order: 0, label: (t.side === 'long' ? '롱' : '숏') + ' 진입', px: t.entryPrice, qty: t.qty, fee: t.entryFee, pnl: null }); rows.push({ time: t.exitAt, order: 1, label: tradeReason(t), px: t.exitPrice, qty: t.qty, fee: t.exitFee, pnl: t.netPnl, warning: t.ambiguous ? '동시 도달 · 손절 우선' : t.exitTimePrecision === 'bar_close_bound' ? '봉 내부 체결 · 마감 시각 표기' : '' }); });
     if (s.position) { const p = s.position; rows.push({ time: p.entryAt, order: 0, label: (p.side === 'long' ? '롱' : '숏') + ' 진입', px: p.entryPrice, qty: p.qty, fee: p.entryFee, pnl: null }); }
     rows.sort((a, b) => b.time - a.time || b.order - a.order);
     $('trades-count').textContent = rows.length;
-    $('trades-body').innerHTML = rows.length ? rows.map(t => '<tr><td>' + escape(kst(t.time)) + ' KST</td><td>' + escape(t.label) + (t.warning ? '<br><small>' + escape(t.warning) + '</small>' : '') + '</td><td>' + price(t.px) + '<br><small>' + fmt(t.qty, 6) + '개</small></td><td>수수료 ' + fmt(t.fee, 4) + (t.pnl !== null ? '<br><b class="' + (t.pnl >= 0 ? 'positive' : 'negative') + '">순손익 ' + fmt(t.pnl) + '</b>' : '') + '</td></tr>').join('') : '<tr><td colspan="4" class="empty-row">아직 체결된 거래가 없습니다. 예약 후 다음 봉을 진행하면 체결을 확인할 수 있습니다.</td></tr>';
+    $('trades-body').innerHTML = rows.length ? rows.map(t => '<tr><td>' + timeCell(t.time) + '</td><td>' + nwDates(escape(t.label)) + (t.warning ? '<br><small>' + escape(t.warning) + '</small>' : '') + '</td><td>' + price(t.px) + '<br><small>' + fmt(t.qty, 6) + '개</small></td><td>수수료 ' + fmt(t.fee, 4) + (t.pnl !== null ? '<br><b class="' + (t.pnl >= 0 ? 'positive' : 'negative') + '">순손익 ' + fmt(t.pnl) + '</b>' : '') + '</td></tr>').join('') : '<tr><td colspan="4" class="empty-row">아직 체결된 거래가 없습니다. 예약 후 다음 봉을 진행하면 체결을 확인할 수 있습니다.</td></tr>';
   }
   function saveSummary() {
     const s = state.snapshot;
     const summary = { version: 1, savedAt: new Date().toISOString(), ticker: s.ticker, cutoff: s.cutoff, mapping: $('cross-mapping').value, exitMode:s.settings.exitMode, equity: s.equity, stats: s.stats, decisionCount: s.decisions.length, tradeCount: s.trades.length, finished: s.finished, finishReason: s.finishReason };
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(summary)); $('saved-summary').textContent = '현재 연습 요약 저장됨 · ' + s.ticker + ' · 판단 ' + s.decisions.length + '회 · 완료 거래 ' + s.trades.length + '회 · 순손익 ' + fmt(s.stats.netPnl) + ' USDT. 전체 기록은 CSV로 보관하세요.'; }
-    catch (_) { $('saved-summary').textContent = '이 브라우저에서는 요약 저장이 제한됩니다. 전체 기록은 CSV로 보관하세요.'; }
+    // 방금 기록 CSV를 저장했고 그 뒤로 진행·판단이 없으면 'CSV 저장함 · 파일 이름'을, 아니면 보관 안내를 붙인다.
+    const c = state.csvSaved, csv = c && c.engine === state.engine && c.index === s.index && c.decisions === s.decisions.length && c.trades === s.trades.length ? ' CSV 저장함 · ' + c.name : ' 전체 기록은 CSV로 보관하세요.';
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(summary)); $('saved-summary').textContent = '현재 연습 요약 저장됨 · ' + s.ticker + ' · 판단 ' + s.decisions.length + '회 · 완료 거래 ' + s.trades.length + '회 · 순손익 ' + fmt(s.stats.netPnl) + ' USDT.' + csv; }
+    catch (_) { $('saved-summary').textContent = '이 기기에서는 요약 저장이 제한됩니다.' + csv; }
     if (state.runWarning) $('saved-summary').textContent += ' ' + state.runWarning;
   }
   function exportCsv() {
     if (!state.snapshot) return;
-    const s = state.snapshot;
-    const rows = [['구분', '종목', '시각_KST', '행동', '진입가', '청산가', '수량', '진입수수료', '청산수수료', '순손익_USDT', '판단이유_처리', '교차기준', '체결시각정밀도','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST']];
-    s.decisions.forEach((d, i) => rows.push(['판단', s.ticker, kst(d.time, true), actionLabels[d.action] || d.action, '', '', '', '', '', '', d.note || state.notes[i] || d.reason || d.status, $('cross-mapping').value || '미선택', '봉 마감',s.settings.exitMode,d.trigger?d.trigger.label:'',d.trigger?kst(d.trigger.time,true):'',d.trigger?kst(d.trigger.availableAt,true):'']));
-    s.trades.forEach(t => rows.push(['완료거래', s.ticker, kst(t.exitAt, true), t.side, t.entryPrice, t.exitPrice, t.qty, t.entryFee, t.exitFee, t.netPnl, tradeReason(t) + (t.ambiguous ? ' / 익절·손절 같은 봉: 손절 우선' : ''), $('cross-mapping').value || '미선택', t.exitTimePrecision,s.settings.exitMode,t.exitTrigger?t.exitTrigger.label:'',t.exitTrigger?kst(t.exitTrigger.time,true):'',t.exitTrigger?kst(t.exitTrigger.availableAt,true):'']));
-    if (s.position) { const p = s.position; rows.push(['미청산', s.ticker, kst(p.entryAt, true), p.side, p.entryPrice, '', p.qty, p.entryFee, '', '', '평가손익 ' + p.unrealizedPnl + ' USDT / 실제 청산 아님', $('cross-mapping').value || '미선택', '봉 시가']); }
-    rows.push(['요약', s.ticker, kst(s.cutoff, true), '', '', '', '', '', '', s.stats.netPnl, '평가자산 ' + s.equity + ' / 초기'+s.settings.initialBalance+' / 증거금' + s.settings.allocationPct + '% / 레버리지' + s.settings.leverage + ' / 수수료편도4bps / 슬리피지편도2bps / TP' + s.settings.takeProfitPct + '% / SL' + s.settings.stopLossPct + '%', $('cross-mapping').value || '미선택', '']);
-    rows.forEach((row,index) => { if (index && row.length < 14) { while(row.length < 13)row.push(''); row.push(s.settings.exitMode,'','',''); } });
-    downloadRows(rows, '지표모의연습_' + s.ticker + '_' + s.settings.exitMode + '_' + kst(s.cutoff, true).replace(/[- :]/g, '') + '.csv', $('export'), '판단·완료 거래·미청산 상태·계산 가정을 CSV로 저장했습니다.');
+    stop(); // 자동 진행 중이면 멈춘다(다음 진행 알림이 저장 결과 문구를 곧바로 지우지 않게)
+    const s = state.snapshot, mode = s.settings.exitMode, mapping = mappingLabel($('cross-mapping').value), modeName = exitLabels[mode] || mode;
+    // 청산모드(설정 코드) 열은 그대로 두고, 맨 끝에 한글 '청산방식'과 거래의 '진입시각_KST'를 더한다.
+    const trigger = x => x ? [x.label, csvTime(x.time), csvTime(x.availableAt)] : ['', '', ''];
+    const rows = [['구분', '종목', '시각_KST', '행동', '진입가', '청산가', '수량', '진입수수료', '청산수수료', '순손익_USDT', '판단이유_처리', '교차기준', '체결시각정밀도','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST','청산방식','진입시각_KST']];
+    s.decisions.forEach((d, i) => { const text = decisionText(d, i); rows.push(['판단', s.ticker, csvTime(d.time), text.action, '', '', '', '', '', '', text.reason, mapping, '봉 마감', mode, ...trigger(d.trigger), modeName, '']); });
+    s.trades.forEach(t => rows.push(['완료거래', s.ticker, csvTime(t.exitAt), csvSide(t.side), csvPrice(t.entryPrice), csvPrice(t.exitPrice), csvNum(t.qty, 6), csvNum(t.entryFee, 4), csvNum(t.exitFee, 4), csvNum(t.netPnl), tradeReason(t) + (t.ambiguous ? ' / 익절·손절 같은 봉: 손절 우선' : ''), mapping, precisionNames[t.exitTimePrecision] || t.exitTimePrecision, mode, ...trigger(t.exitTrigger), modeName, csvTime(t.entryAt)]));
+    if (s.position) { const p = s.position; rows.push(['미청산', s.ticker, csvTime(p.entryAt), csvSide(p.side), csvPrice(p.entryPrice), '', csvNum(p.qty, 6), csvNum(p.entryFee, 4), '', '', '평가손익 ' + fmt(p.unrealizedPnl) + ' USDT(진입 수수료 빼기 전) / 실제 청산 아님', mapping, precisionNames.open, mode, '', '', '', modeName, csvTime(p.entryAt)]); }
+    rows.push(['요약', s.ticker, csvTime(s.cutoff), '', '', '', '', '', '', csvNum(s.stats.netPnl), '평가자산 ' + fmt(s.equity) + ' USDT / 초기 ' + fmt(s.settings.initialBalance) + ' USDT / 증거금 ' + s.settings.allocationPct + '% / 레버리지 ' + s.settings.leverage + '배 / ' + costText(s.settings) + ' / ' + bracketText(s.settings), mapping, '', mode, '', '', '', modeName, '']);
+    downloadRows(rows, '지표모의연습_' + s.ticker + '_' + (exitShort[mode] ? exitShort[mode] + '_' : '') + mode + '_' + kst(s.cutoff, true).replace(/[- :]/g, '') + '.csv', $('export'), '판단·완료 거래·미청산 상태·계산 가정을 CSV로 저장했습니다.');
   }
   function signalLabel(event) {
     if (event.source === 'ut_signal2' && (event.signal === 'L' || event.signal === 'S')) return { label: event.signal === 'L' ? 'LL' : 'SS', long: event.signal === 'L', lane: 0 };
@@ -683,7 +799,8 @@
       ctx.fillStyle=step.color;ctx.font='bold '+uiPx(mobile?12:13)+'px "Malgun Gothic",sans-serif';ctx.textAlign='left';ctx.fillText(step.number+'  '+step.label,cardX+8,cardY+17,cardW-14);
       ctx.fillStyle='#d1dce0';ctx.font=uiPx(mobile?9:10)+'px "Malgun Gothic",sans-serif';
       const stamp=kst(step.time).split(' ');
-      if (mobile) { ctx.fillText(stamp[0],cardX+8,cardY+39,cardW-14); ctx.fillText(barMap.has(step.time)?stamp[1]:'범위 밖',cardX+8,cardY+58,cardW-14); }
+      // 휴대폰 카드도 '05:00 봉'처럼 봉이 시작한 시각임을 적는다(오른쪽 위 시각·질문 카드 '확인'은 봉이 끝난 시각).
+      if (mobile) { ctx.fillText(stamp[0],cardX+8,cardY+39,cardW-14); ctx.fillText(barMap.has(step.time)?stamp[1]+' 봉':'범위 밖',cardX+8,cardY+58,cardW-14); }
       else ctx.fillText(kst(step.time),cardX+8,cardY+39,cardW-14);
       const visible=barMap.has(step.time);
       if (!mobile) ctx.fillStyle='#a1b8be', ctx.fillText(visible ? (step.role==='cross'?'교차 신호 · 표시 봉':step.role==='smart'?'Smart · 표시 봉':'Premium · 표시 봉') : '확대 범위 밖 · 함께 보기',cardX+8,cardY+58,cardW-14);
@@ -752,8 +869,8 @@
     ['initial-balance','leverage','allocation','take-profit','stop-loss','exit-mode'].forEach(id=>$(id).addEventListener('change',()=>{stop();clearMonth();notify('설정이 바뀌었습니다. '+(state.mode==='month'?'한 달 시뮬레이션 실행':'이 조건부터 새 계좌로 / 새 연습 시작')+'을 누르면 새 설정을 적용합니다.');}));
     $('exit-comparison').addEventListener('click',event=>{ const button = event.target.closest('[data-exit-mode]'); if (button && !button.disabled) showComparisonMode(button.dataset.exitMode); });
     ['long','short','close','wait'].forEach(action => $(action).addEventListener('click', () => submit(action)));
-    $('next-hour').addEventListener('click', () => { stop(); advance(1); }); $('next-six').addEventListener('click', () => { stop(); advance(6); });
-    $('play').addEventListener('click', () => { if (state.timer) { stop(); return; } if (!state.snapshot || state.snapshot.finished) return; $('play').textContent = 'Ⅱ 일시 정지'; $('play').setAttribute('aria-pressed','true'); state.timer = setInterval(() => advance(1), 1200); });
+    $('next-hour').addEventListener('click', () => { stop(); advance(1, 'playback'); revealZone('playback'); }); $('next-six').addEventListener('click', () => { stop(); advance(6, 'playback'); revealZone('playback'); });
+    $('play').addEventListener('click', () => { if (state.timer) { stop(); return; } if (!state.snapshot || state.snapshot.finished) return; $('play').textContent = 'Ⅱ 일시 정지'; $('play').setAttribute('aria-pressed','true'); state.timer = setInterval(() => advance(1, 'playback'), 1200); });
     $('cross-mapping').addEventListener('change', () => {
       stop(); discardRun(); state.quizRun=null; updateTickerOptions(); clearMonth();
       if (!state.data) { loadTicker(state.ticker); return; }
@@ -767,9 +884,11 @@
     $('focus-case').addEventListener('click', () => { state.fitCase=true; state.hover=null; drawChart(); });
     $('chart').addEventListener('pointermove', hover); $('chart').addEventListener('pointerleave', () => { state.hover=null; if(state.snapshot) updateReadout(state.snapshot.current); queueDraw(); });
     $('export').addEventListener('click', exportCsv);
-    ['journal','trades'].forEach(name => $('tab-'+name).addEventListener('click', () => { ['journal','trades'].forEach(other => { const selected=other===name; $('tab-'+other).classList.toggle('active',selected); $('tab-'+other).setAttribute('aria-selected',String(selected)); $(other+'-panel').hidden=!selected; }); }));
+    ['journal','trades'].forEach(name => $('tab-'+name).addEventListener('click', () => { ['journal','trades'].forEach(other => { const selected=other===name; $('tab-'+other).classList.toggle('active',selected); $('tab-'+other).setAttribute('aria-selected',String(selected)); $(other+'-panel').hidden=!selected; }); queueScrollCheck(); }));
     if(window.ResizeObserver) new ResizeObserver(queueDraw).observe($('chart-wrap')); else window.addEventListener('resize',queueDraw);
     window.addEventListener('resize',drawEquity);
+    // 화면을 돌리거나 폭이 바뀌면 '오른쪽/아래·왼쪽/위쪽' 안내와 표 옆 밀기 안내를 다시 맞춘다.
+    window.addEventListener('resize',() => { renderNotes(); if (state.snapshot && state.mode !== 'month') renderPending(state.snapshot); queueScrollCheck(); });
     window.addEventListener('pagehide', stop); document.addEventListener('visibilitychange', () => { if(document.hidden)stop(); });
     loadTicker(state.ticker, { restore: run, warning });
   }
