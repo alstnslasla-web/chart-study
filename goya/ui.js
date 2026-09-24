@@ -310,6 +310,7 @@
     // 누른 버튼이 다시 그려져 사라지므로 키보드 초점을 비교표 제목으로 옮긴다(화면은 움직이지 않는다).
     const heading = $('comparison-heading'); if (heading && typeof heading.focus === 'function') { heading.setAttribute('tabindex', '-1'); try { heading.focus({ preventScroll: true }); } catch (_) {} }
     notify('아래 한 달 결과를 ' + exitLabels[mode] + ' 방식으로 보여 드립니다. 위 연습 설정(포지션 정리 기준)은 바뀌지 않습니다.', '', 'comparison');
+    revealZone('comparison'); // 비교표 바로 아래 안내 줄이 화면 밖이면 살짝 올려 보인다
   }
   function drawEquity() {
     if(!state.month||state.mode!=='month')return;

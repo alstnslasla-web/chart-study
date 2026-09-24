@@ -140,15 +140,17 @@
     if (location.hash.startsWith('#sim-example')) requestAnimationFrame(drawSim);
     const goyaFrame = document.getElementById('goya-practice-frame');
     if (goyaFrame && goyaFrame.contentWindow) goyaFrame.contentWindow.postMessage({ type: 'cb-font', font: S.settings.font }, location.protocol === 'file:' ? '*' : location.origin);
-    toast('글자: ' + FONT_NAME[S.settings.font], `3단계 중 ${FONT_ORDER.indexOf(S.settings.font) + 1}단계 · 한 번 더 누르면 ${FONT_NAME[fontNext(S.settings.font)]}`);
+    toast('글자: ' + FONT_NAME[S.settings.font], `3단계 중 ${FONT_ORDER.indexOf(S.settings.font) + 1}단계 · 한 번 더 누르면 ${FONT_NAME[fontNext(S.settings.font)]}`, { transient: true });
   });
 
   // 알림: index.html 의 #toast(role=status)를 다시 쓴다. 상단바 바로 아래에 3초 뜨고, 누름은 아래 버튼으로 그대로 통과한다(app.css .toast).
   let toastTimer = null;
-  function toast(msg, sub) {
+  // transient: 그 화면에서만 뜻이 있는 알림(글자 단계). 다른 화면으로 옮기면 바로 치워 새 화면 제목을 가리지 않는다.
+  function toast(msg, sub, opts) {
     let t = $('#toast');
     if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); document.body.appendChild(t); }
     t.innerHTML = `<strong>${esc(msg)}</strong>${sub ? `<span>${esc(sub)}</span>` : ''}`;
+    t.dataset.transient = opts && opts.transient ? '1' : '';
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.classList.remove('show'); toastTimer = setTimeout(() => { t.textContent = ''; }, 250); }, 3000);
@@ -1009,7 +1011,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260925dev7' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260925dev8' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
@@ -1030,6 +1032,7 @@
     const params = new URLSearchParams(query || '');
     const seg = pathPart.split('/');
     closeZoom(false);
+    const tt = $('#toast'); if (tt && tt.dataset.transient === '1' && tt.classList.contains('show')) { clearTimeout(toastTimer); tt.classList.remove('show'); tt.textContent = ''; }
     clearInterval(SIM.timer);
     document.body.classList.remove('goya-practice-route');
     const goyaHostEl = document.getElementById('goya-host');
