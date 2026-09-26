@@ -7,7 +7,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   var HOUR = 3600;
-  var DEFAULTS = Object.freeze({ initialBalance: 10000, allocationPct: 10, leverage: 2,
+  var DEFAULTS = Object.freeze({ initialBalance: 10000, allocationPct: 10, leverage: 1,
     feeBps: 4, slippageBps: 2, takeProfitPct: 0, stopLossPct: 0, exitMode: 'opposite_smart' });
   var EXIT_MODES = ['opposite_smart', 'opposite_complete', 'tp_sl'];
   var LIMITS = { initialBalance: [1, 1e12], allocationPct: [0.01, 100], leverage: [1, 10],
@@ -29,6 +29,17 @@
         fail('INVALID_SETTINGS', key + ' 설정은 ' + range[0] + ' ~ ' + range[1] + ' 범위의 숫자여야 합니다.');
     });
     return result;
+  }
+  // Order sizing shared by the paper fill and the pre-order quote, so the screen shows exactly what the fill will use.
+  function sizing(cfg, cash) {
+    var margin = Math.min(cash * cfg.allocationPct / 100, cash / (1 + cfg.leverage * cfg.feeBps / 10000));
+    var notional = margin * cfg.leverage, entryFee = notional * cfg.feeBps / 10000;
+    return { margin: margin, notional: notional, entryFee: entryFee, leverage: cfg.leverage, cashAfter: cash - margin - entryFee };
+  }
+  function quoteOrder(settings, cash) {
+    var cfg = validateSettings(settings);
+    if (!finite(cash) || cash <= 0) fail('NO_CASH', '사용할 모의 자금이 없습니다.');
+    return sizing(cfg, cash);
   }
   function completionRows(items) {
     if (!Array.isArray(items)) fail('INVALID_COMPLETIONS', '전략 완성 신호 배열이 필요합니다.');
@@ -118,7 +129,7 @@
     function reset(startIndex, nextSettings) {
       var newSettings = validateSettings(Object.assign({}, settings || options.settings || {}, nextSettings || {}));
       if (newSettings.exitMode === 'opposite_complete' && options.completions === undefined)
-        fail('INVALID_COMPLETIONS', '반대 3조건 정리에는 완성 신호 배열이 필요합니다.');
+        fail('INVALID_COMPLETIONS', '반대 진입 조건 정리에는 완성 신호 배열이 필요합니다.');
       var newIndex = startIndex === undefined ? (options.startIndex === undefined ? 0 : options.startIndex) : startIndex;
       if (!Number.isInteger(newIndex) || newIndex < 0 || newIndex > lastIndex)
         fail('INVALID_START_INDEX', '시작 위치는 마감된 시간봉 범위 안의 정수여야 합니다.');
@@ -195,9 +206,7 @@
       }
       var cfg = order.settings, side = order.action;
       var entryPrice = bar.o * (1 + (side === 'long' ? 1 : -1) * cfg.slippageBps / 10000);
-      var margin = Math.min(cash * cfg.allocationPct / 100, cash / (1 + cfg.leverage * cfg.feeBps / 10000));
-      var notional = margin * cfg.leverage;
-      var entryFee = notional * cfg.feeBps / 10000;
+      var size = sizing(cfg, cash), margin = size.margin, notional = size.notional, entryFee = size.entryFee;
       cash -= margin + entryFee;
       if (cash < 0 && cash > -1e-8) cash = 0;
       position = { id: ++tradeId, side: side, submittedAt: order.submittedAt, entryAt: bar.time, entryTime: bar.time,
@@ -261,7 +270,7 @@
         });
         if (completed) {
           var event = completed.event;
-          trigger = { type: 'complete', direction: opposite, label: opposite === 'long' ? '롱 3조건 완성' : '숏 3조건 완성',
+          trigger = { type: 'complete', direction: opposite, label: opposite === 'long' ? '롱 진입 조건 성립' : '숏 진입 조건 성립',
             time: event.completeAt, availableAt: event.availableAt, observedAt: now,
             completionId: event.id || null, source_index: completed.sourceIndex };
         }
@@ -313,7 +322,7 @@
           skipped.push({ sourceIndex: item.sourceIndex, completion: item.event,
             reason: reason, evaluatedAt: state.cutoff });
         } else {
-          state = engine.submit(item.event.direction, '확정된 3조건 완성 신호에 따른 모의 진입');
+          state = engine.submit(item.event.direction, '확정된 진입 조건에 따른 모의 진입');
           accepted.push({ sourceIndex: item.sourceIndex, completion: item.event,
             submittedAt: state.cutoff, submittedIndex: state.index });
         }
@@ -357,5 +366,5 @@
       }) });
   }
   return Object.freeze({ create: create, runStrategy: runStrategy, defaults: DEFAULTS,
-    candleSeconds: HOUR, validateSettings: validateSettings });
+    candleSeconds: HOUR, validateSettings: validateSettings, quoteOrder: quoteOrder });
 });

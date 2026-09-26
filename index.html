@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#0f4c5c">
-  <meta name="description" content="차트 29강·145문제, 일봉부터 분봉까지 큰 흐름 읽기, 업비트·바이낸스 화면 안내와 우리 지표 실제 기록 모의연습을 천천히 배웁니다.">
+  <meta name="description" content="차트 30강·150문제, 일봉부터 분봉까지 큰 흐름 읽기, 업비트·바이낸스 화면 안내와 우리 지표 실제 기록 모의연습을 천천히 배웁니다.">
   <meta name="author" content="김민수">
   <meta name="copyright" content="저작권 © 2026 김민수. All rights reserved. 무단복제 및 재배포 금지.">
   <meta name="referrer" content="no-referrer">
@@ -21,7 +21,7 @@
   <title>차트 배움터</title>
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMGY0YzVjIi8+PHJlY3QgeD0iMjYiIHk9IjUyIiB3aWR0aD0iMTQiIGhlaWdodD0iNDAiIGZpbGw9IiNkOTMwMjUiLz48cmVjdCB4PSIzMSIgeT0iNDAiIHdpZHRoPSI0IiBoZWlnaHQ9IjEyIiBmaWxsPSIjZDkzMDI1Ii8+PHJlY3QgeD0iMzEiIHk9IjkyIiB3aWR0aD0iNCIgaGVpZ2h0PSIxMCIgZmlsbD0iI2Q5MzAyNSIvPjxyZWN0IHg9IjU3IiB5PSIzNiIgd2lkdGg9IjE0IiBoZWlnaHQ9IjMwIiBmaWxsPSIjMWE3M2U4Ii8+PHJlY3QgeD0iNjIiIHk9IjI0IiB3aWR0aD0iNCIgaGVpZ2h0PSIxMiIgZmlsbD0iIzFhNzNlOCIvPjxyZWN0IHg9IjYyIiB5PSI2NiIgd2lkdGg9IjQiIGhlaWdodD0iMTQiIGZpbGw9IiMxYTczZTgiLz48cmVjdCB4PSI4OCIgeT0iNDYiIHdpZHRoPSIxNCIgaGVpZ2h0PSI0NiIgZmlsbD0iI2Q5MzAyNSIvPjxyZWN0IHg9IjkzIiB5PSIzMCIgd2lkdGg9IjQiIGhlaWdodD0iMTYiIGZpbGw9IiNkOTMwMjUiLz48cmVjdCB4PSI5MyIgeT0iOTIiIHdpZHRoPSI0IiBoZWlnaHQ9IjgiIGZpbGw9IiNkOTMwMjUiLz48cGF0aCBkPSJNMTggOTYgTDExMCA0MCIgc3Ryb2tlPSIjZjBiNDI5IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPjwvc3ZnPg==" type="image/svg+xml">
   <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAEWklEQVR4nO3dPU5bQRiGUSeio0hJg5QSKW0kU9NnCVlAFkBJSckCshtqkNJGorREwwLokBJZiRUU2ca+vj8z857TGgsHfc/M4HtN3n348vXXDEK9n/oFwJQEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARDtaOoXkOj47GbjY88Pl6O+lnR2AKIJgGgCIJoAiCYAogmAaAIgmgCI5kIYO7t/vNv42Pz0fFYjOwDRBEA0ARBNAEQTANEEQDQBEE0ARHMhbORPfB3yXJ8W658dgGgCIJoAKMbi24/Rv6cAKGLwV8M/dgQCIG7Vb+JdoBZvzU2y2DL4y8c+fv88yuuwAzDZceetrxuDAIg57qwjAIpZ9dc9b2jV/g5AHRYdh3is3wEEwCAOWb3HGv4lARA5+CsCIOa4s44AONjJ9dFsMatv+JcEwM4XGNcNfldTD/6KAOik6/CXMvgrAmAvLaz6rwmAwQf/6eql2PuzXAlm8OEvmR2AyMFfEQCRg7/iCETs8C/ZATj4FoYaB7+KAPa5KLPP80p9R6K24X+qePCrCIBhLUJX/dcEEMjg/yOAMMnHnXUEEMKqv54AGmfwtxNAwxx33iaABln1dyeAhvTxedz7WbdrL7VyK0QjavsweinsAJUz+IcRQKUMfj8cgSpk+PtjB6iIwe+fACrx8+Ki0/OSf8HdhQAaHfwlw/82ARTK4I9DAAVy3BmPAApi1R+fAApg8KcjgIk57kxLABOx6pdBAAN4frjc+JiLWWVxK8SIDH957AAjMPjlEsCADH75HIEGYvjrYAcoaPA/3d5u/QWa/gmggOFfDj7TEEABqz7TEcABDH79BDDB/4p+fHbT9dvSMwHsybs7bRHAjgx+mwQw8HGHsglgC6t++wSwhsHP4VaI/xj+LHaAvwx+pvgADH626COQ4SdyBzD4xAZwct3tn+w9/TbFBNB18IcYfvf8l6P5AEoafMrTdACOO0QGYNUnMgCDT2wAjjtEBmDVJzIAg0/srRCHDP/T1Uuvr4W6VbUDGHwiAzD4xB6BDD+RO8CfOza7vTznfKoN4JBblQ0+VR+BDD+RO4DBJzaArsPvuEPVAVj1iQygl8/jns5m9493G79ufnre+Xukm2/52bX4Mx81AH9jk8gA/BUGot8G7fLZ2uVzfCaXqOsAKwaf5gLYZait+jS9A2yKwOATewRy3CEqgNXAW/WJ3QGs+pRi8iMQTEkARJv8blDqMa/0fp9t7ABEEwDRqj0CtbgdMz47ANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTANEEQDQBEE0ARBMA0QRANAEQTQBEEwDRBEA0ARBNAEQTALNkvwEdIkFWVkwl/AAAAABJRU5ErkJggg==">
-  <link rel="stylesheet" href="app.css?v=2ac9855691">
+  <link rel="stylesheet" href="app.css?v=29b6c6caf9">
 <style id="cb-gate-style">
 .cb-gate{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:#f1f5f3;color:#14232b;font:20px/1.6 "Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;text-align:center;word-break:keep-all}
 .cb-gate[hidden]{display:none}.cb-card{max-width:30em;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 10px 30px rgba(11,93,107,.12)}
@@ -57,6 +57,6 @@
   <noscript><p>차트 배움터를 사용하려면 브라우저의 JavaScript를 허용해 주세요.</p></noscript>
   <div id="modal-root"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-                      <script src="cb-link.js?v=2ac9855691" data-mode="parent"></script>
+                      <script src="cb-link.js?v=29b6c6caf9" data-mode="parent"></script>
 </body>
 </html>

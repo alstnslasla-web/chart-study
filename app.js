@@ -45,7 +45,7 @@
     'candles': 'candle-basics', 'trendline': 'trend-candles', 'draw-lines': 'practice-candles', 'channels': 'chart-structures',
     'support': 'chart-structures', 'triangles': 'triangle-candles', 'volume-profile': 'volume-profile', 'golden-cross': 'golden-cross',
     'bollinger': 'bollinger', 'rsi': 'rsi-candles', 'macd': 'macd-candles', 'divergence': 'divergence-types', 'elliott': 'elliott-candles',
-    'goya-markers': 'goya-markers', 'goya-three-conditions': 'goya-three-conditions', 'goya-entry-exit': 'goya-exit-modes', 'goya-practice-app': 'goya-practice-screen-a'
+    'goya-markers': 'goya-markers', 'goya-three-conditions': 'goya-two-signals', 'goya-entry-exit': 'goya-exit-modes', 'goya-practice-app': 'goya-practice-screen-a', 'goya-indicator-identity': 'goya-identity-map'
   };
   const FIG_EXTRA = { 'goya-practice-app': ['goya-practice-screen-b'] };
   const FIG_CAPTION = {
@@ -53,7 +53,7 @@
     'chart-structures': '추세선 · 채널 · 삼각수렴 · 거짓 돌파', 'triangle-candles': '고점은 낮아지고 저점은 높아지는 삼각수렴', 'volume-profile': '시간별 거래량과 가격별 매물대',
     'golden-cross': '짧은 평균선이 긴 평균선 위로(후행성)', 'bollinger': '볼린저밴드의 좁은 폭과 넓은 폭', 'rsi-candles': 'RSI 70 위에서도 가격은 더 오를 수 있음',
     'macd-candles': 'MACD선 · 신호선 · 막대(차이)', 'divergence-types': '일반·히든 다이버전스 네 가지', 'elliott-candles': '엘리엇파동 1~5와 A·B·C',
-    'goya-markers': '학습용 가상 그림입니다. RS·RL 화살표는 원본 화면 모양이며, 앱에서는 둘 다 봉 위 노란 마름모입니다. L2는 원본에서도 봉 아래 초록 화살표지만 이 그림에서는 글자 상자로만 표시했고, 분홍 선은 1시간봉 24개 평균선과 거의 같은 선입니다.', 'goya-three-conditions': '학습용 가상 그림입니다. 위는 롱, 아래는 숏입니다. ① Smart가 먼저 나오고, ② Premium과 ③ RS는 순서와 상관없이 모이면 완성입니다. 진입을 고르면 다음 봉 시가에 모의 체결됩니다.', 'goya-exit-modes': '학습용 가상 그림입니다. 같은 롱 진입에서 ①과 ②가 언제 정리되는지 비교하세요. ①은 반대 SS가 보인 다음 봉 시가에 정리하고, ②는 반대 세 조건이 완성될 때까지 들고 있습니다.', 'goya-practice-screen-a': '앱 화면 예시(휴대폰). ① 연습 방식 탭 ② 연습할 코인 ③ 세 신호 카드 ⑤ 롱·숏·관망 고르기 ⑥ 진행 버튼. 보관된 과거 시세를 모의로 재생한 화면입니다.', 'goya-practice-screen-b': '앱 화면 예시(휴대폰). ④ 차트와 “세 신호 함께 보기”. 차트 위 상자의 시각은 봉이 시작한 시각이라 카드의 확인 시각보다 한 시간 이릅니다.'
+    'goya-markers': '학습용 가상 그림입니다. RS·RL 화살표는 원본 화면 모양이며, 앱에서는 둘 다 봉 위 노란 마름모입니다. L2는 원본에서도 봉 아래 초록 화살표지만 이 그림에서는 글자 상자로만 표시했고, 분홍 선은 1시간봉 24개 평균선과 거의 같은 선입니다.', 'goya-two-signals': '학습용 그림입니다. 위는 롱, 아래는 숏입니다. 같은 방향 카드가 서로 다른 종류로 두 가지 이상 모이면 진입 조건이며, 순서는 상관없습니다. 진입을 고르면 다음 봉 시가에 모의 체결됩니다.', 'goya-exit-modes': '학습용 가상 그림입니다. 같은 롱 진입에서 ①과 ②가 언제 정리되는지 비교하세요. ①은 반대 SS가 보인 다음 봉 시가에 정리하고, ②는 반대 방향 진입 조건이 성립할 때까지 들고 있습니다.', 'goya-practice-screen-a': '앱 화면 예시(휴대폰). ① 연습 방식 탭 ② 연습할 코인 ③ 신호 카드 ⑤ 롱·숏·관망 고르기 ⑥ 진행 버튼. 보관된 과거 시세를 모의로 재생한 화면입니다.', 'goya-practice-screen-b': '앱 화면 예시(휴대폰). ④ 차트와 “신호 함께 보기”. 차트 위 상자의 시각은 봉이 시작한 시각이라 카드의 확인 시각보다 한 시간 이릅니다.', 'goya-identity-map': '학습용 정리 그림입니다. 왼쪽은 화면에 보이는 표시, 가운데는 우리 팀이 대조해 확인한 계산식, 오른쪽은 대조 결과입니다. 아래쪽 표시들은 정체를 찾지 못해 보관한 표시를 그대로 씁니다.'
   };
   const IMG = (name) => window.CHART_ASSETS["assets/" + name + ".webp"];
   const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화', '4부 · 우리 지표 연습'];
@@ -274,9 +274,9 @@
         <div class="mod-foot"><span class="badge">${bn} / ${STEPS.length}단계 확인</span><span>모의거래부터</span></div>
       </a>
       <a class="card lift module-card" href="#sim">
-        <div class="mod-head"><div class="mod-ico" aria-hidden="true">📈</div><div><div class="mod-title">지표 모의연습</div><div class="mod-sub">우리 지표 실제 기록 · 세 가지 신호를 보며 롱·숏·관망 연습</div></div></div>
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">📈</div><div><div class="mod-title">지표 모의연습</div><div class="mod-sub">우리 지표 실제 기록 · 같은 방향 신호 두 가지 이상을 보며 롱·숏·관망 연습</div></div></div>
         ${ring(goyaProgress().pct, '연습 진행')}
-        <div class="mod-foot"><span class="badge">${goyaProgress().label}</span><span>실제 기록 353종목 · 한 시간씩 진행</span></div>
+        <div class="mod-foot"><span class="badge">${goyaProgress().label}</span><span>실제 기록 353종목 · 8/24~9/26 · 한 시간씩 진행</span></div>
       </a>
       <div class="notice"><strong>이 앱은 연습용입니다</strong>투자 조언이 아니며 수익을 약속하거나 특정 종목·거래를 권하지 않습니다. 선물은 투자금 전액 손실과 강제청산 위험이 있습니다. 학습 기록은 ${ENV.apk ? '이 기기' : '이 기기·브라우저'}에만 저장되며 다른 사람과 공유되지 않습니다.</div>
       <a class="big-btn accent" href="#quiz/play?mode=daily"><span aria-hidden="true">🎯</span> 오늘의 도전 10문제 시작</a>
@@ -783,12 +783,12 @@
       <h2 class="page-title">${esc(s.title)}</h2>
       <div class="kbd" style="font-size:0.9em;padding:6px 10px;line-height:1.4">${esc(s.menu)}</div>
       ${s.id === '09' ? '<div class="tip">실제 전송 전에는 <a href="#binance/9">10단계에서 받을 주소와 네트워크를 먼저 확인</a>하고 이 단계로 돌아오세요.</div>' : s.id === '10' ? '<div class="tip">본인 계정의 주소를 확인했다면 <a href="#binance/8">9단계 업비트 출금 화면으로 돌아가기</a></div>' : ''}
-      <div id="shot"></div>
+      ${s.guide ? '<div id="step-gallery"></div>' : '<div id="shot"></div>'}
       <div class="card"><h2>이렇게 합니다</h2><ol class="instr ${s.bilingual ? 'bi-instructions' : ''}">${(s.steps || []).map((x, i) => `<li>${s.bilingual ? `<button type="button" data-bi-instruction="${i}" aria-pressed="${i === 0}" aria-controls="shot" aria-label="${i + 1}번 설명: ${esc(x)} 그림에서 위치 보기">${esc(x)}<small>그림에서 위치 보기</small></button>` : esc(x)}</li>`).join('')}</ol>
         ${(s.labels || []).length ? `<h3>화면에서 찾을 글자</h3><div class="labels">${s.labels.map((l) => `<span class="${l === s.hl ? 'hl' : ''}">${esc(l)}</span>`).join('')}</div>` : ''}
       </div>
       ${s.id === '14' ? '<a class="big-btn secondary" href="#timeframes">시간봉 차이와 큰 흐름 가이드</a>' : ''}
-      ${s.guide ? '<div id="step-gallery"></div>' : ''}
+      ${s.guide ? '<details class="card mock-details"><summary>학습용 모형 화면 보기 (공식 화면 아님)</summary><div id="shot"></div></details>' : ''}
       <div class="notice bad"><strong><span aria-hidden="true">⚠</span> 주의</strong>${esc(s.caution || '')}</div>
       ${(s.verified || (s.sources || []).length) ? `<div class="small-print step-sources">${s.verified ? `<p>확인 상태: ${esc(s.verified)}${s.verified === '미확인' ? ' — 현재 앱 화면의 일부(버튼 이름·메뉴 경로 등)를 확인하지 못했습니다.' : ''}</p>` : ''}${(s.sources || []).length ? `<p>참고 자료: ${s.sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">공식 문서${s.sources.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ')}</p>${s.guide ? '' : EXT_NOTE}` : ''}</div>` : ''}
       <button class="big-btn ${S.bnb[s.id] ? 'ok' : 'accent'}" type="button" data-act="done">${S.bnb[s.id] ? '✓ 이해했어요 (확인됨)' : '이 화면 이해했어요'}</button>
@@ -796,7 +796,7 @@
     `;
     // 실제 캡처가 있으면 모형 대신 표시
     const shot = $('#shot', view);
-    const mock = () => { shot.innerHTML = `<div class="phone"><div class="status"><span>9:41</span><span>▮▮▮ 100%</span></div><div class="ph-top"><span>‹</span><span>${esc(s.screen?.top || '')}</span><span>⋯</span></div><div class="ph-body">${(s.screen?.body || []).map(el).join('')}</div></div><div class="shot-note">${s.guide ? 'USDT 기준의 학습용 화면 모형입니다. 실제 캡처는 아래 업비트 공식 참고 화면에서 확인하세요.' : '앱 배치를 본뜬 그림입니다. 실제 캡처가 아니며 버튼 위치·이름은 앱 버전에 따라 다를 수 있습니다.'}</div>`; };
+    const mock = () => { shot.innerHTML = `<div class="phone"><div class="status"><span>9:41</span><span>▮▮▮ 100%</span></div><div class="ph-top"><span>‹</span><span>${esc(s.screen?.top || '')}</span><span>⋯</span></div><div class="ph-body">${(s.screen?.body || []).map(el).join('')}</div></div><div class="shot-note">${s.guide ? 'USDT 기준의 학습용 화면 모형입니다. 실제 화면은 위 업비트 공식 참고 화면을 기준으로 보세요.' : '앱 배치를 본뜬 그림입니다. 실제 캡처가 아니며 버튼 위치·이름은 앱 버전에 따라 다를 수 있습니다.'}</div>`; };
     const tryExt = (exts) => {
       if (!exts.length) { mock(); return; }
       const im = new Image();
@@ -1011,7 +1011,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260925dev8' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260926dev1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;

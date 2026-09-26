@@ -613,3 +613,10 @@ html[data-font="XL"] .sim-rsi { height: 116px; }
     .view:has(> .module-card) > .notice { margin: 0 0 14px; }
   }
 }
+/* 업비트 8·9단계: 공식 참고 화면을 위로, 학습용 모형은 접어서 아래에(2026-09-26 사용자 지시) */
+.mock-details{padding:0;overflow:hidden}
+.mock-details summary{cursor:pointer;font-weight:700;font-size:1.05em;padding:14px 16px;list-style:none;display:block;box-sizing:border-box;max-width:100%}
+.mock-details summary::before{content:'▸ ';font-size:0.9em}
+.mock-details[open] summary::before{content:'▾'}
+.mock-details summary::-webkit-details-marker{display:none}
+.mock-details > #shot{padding:0 12px 12px}

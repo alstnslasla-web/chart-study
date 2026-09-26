@@ -8,17 +8,17 @@
   const HOUR = 3600;
   const actionLabels = { long: '롱 진입', short: '숏 진입', close: '청산', wait: '관망', cancel: '예약 취소' };
   const reasonLabels = { manual: '청산 예약', opposite_signal: '반대 신호 청산', take_profit: '익절', stop_loss: '손절', liquidation: '단순 모형 강제청산' };
-  const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 세 조건 완성까지 보유 · 장기 보유 실험', tp_sl: '가격 TP / SL로 청산' };
+  const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 진입 조건 성립까지 보유 · 실험', tp_sl: '가격 TP / SL로 청산' };
   // CSV·안내문에 앱 내부 코드(long, open, after_data_gap 등)가 그대로 나가지 않게 쓰는 한글 이름. 파일 이름 앞 짧은 이름은 exitShort.
   const sideNames = { long: '롱', short: '숏' };
   const precisionNames = { open: '봉 시가 체결', bar_close_bound: '봉 내부 체결 · 마감 시각 표기' };
   const skipNames = { position_open: '포지션 보유', position_exists: '포지션 보유', order_pending: '주문 대기', no_next_open: '다음 시가 없음', before_start: '시작 이전', data_gap: '자료 공백', simulation_finished: '연습 종료', duplicate_completion: '동시 조건 중복', invalid_completion: '유효하지 않은 조건', after_data_gap: '자료 공백으로 멈춘 뒤', after_insolvency: '자금 소진으로 멈춘 뒤', outside_closed_archive: '보관 기간 밖', end_no_next_bar: '기록 끝 · 다음 봉 없음', insolvent: '자금 소진', completion_bar_missing: '조건 봉 자료 없음' };
-  const exitShort = { opposite_smart: '반대신호청산', opposite_complete: '세조건보유', tp_sl: '가격익절손절' };
+  const exitShort = { opposite_smart: '반대신호청산', opposite_complete: '반대조건보유', tp_sl: '가격익절손절' };
   // 누른 버튼 바로 아래 안내 줄. 맨 위 알림 줄(#status)은 그대로 두고, 마지막으로 누른 곳의 줄에도 같은 문구를 쓴다. 흐린 버튼의 이유도 여기에 보인다.
   const zoneNotes = { playback: ['playback-note', 'action-note on-dark'], decision: ['decision-feedback', 'action-note decision-feedback'], export: ['export-note', 'action-note'], month: ['export-month-note', 'action-note'], comparison: ['comparison-note', 'action-note'] };
   function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(14, Math.round(n * base / 16)); }
   function applyFontSetting(font) { const f = ['M', 'L', 'XL'].includes(font) ? font : 'L'; const root = document.documentElement; if (!root || !root.dataset) return; if (root.dataset.font === f) return; root.dataset.font = f; if (state.snapshot) queueDraw(); if (state.month) drawEquity(); queueScrollCheck(); }
-  const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'bothrs', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '', zoneNote: null, csvSaved: null, scrollFrame: 0 };
+  const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'two', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '', zoneNote: null, csvSaved: null, scrollFrame: 0 };
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, max = 2) => Number.isFinite(Number(n)) ? Number(n).toLocaleString('ko-KR', { minimumFractionDigits: max === 2 ? 2 : 0, maximumFractionDigits: max }) : '—';
   const price = n => fmt(n, n >= 100 ? 2 : n >= 1 ? 4 : 7);
@@ -80,7 +80,7 @@
   }
   function beginRun() {
     const s = state.engine.snapshot();
-    state.run = { version: 1, ticker: state.ticker, mapping: $('cross-mapping').value, mode: state.mode, settings: s.settings, startIndex: s.index, carryBalance: state.carryBalance, actions: [], savedAt: new Date().toISOString() };
+    state.run = { version: 1, catalogVersion: window.GOYA_SIM_CATALOG.version, ticker: state.ticker, mapping: $('cross-mapping').value, mode: state.mode, settings: s.settings, startIndex: s.index, carryBalance: state.carryBalance, actions: [], savedAt: new Date().toISOString() };
     state.runStopped = false; state.runWarning = '';
   }
   function saveRun() {
@@ -102,10 +102,13 @@
     const run = JSON.parse(localStorage.getItem(RUN_KEY) || 'null');
     if (run === null) return null;
     if (run.version !== 1 || !window.GOYA_SIM_CATALOG.symbols.some(item => item.ticker === run.ticker) ||
-        !['bothrs','rls','cross'].includes(run.mapping) || !['quiz','manual'].includes(run.mode) ||
+        !['two','bothrs','rls','cross'].includes(run.mapping) || !['quiz','manual'].includes(run.mode) ||
         !Number.isInteger(run.startIndex) || run.startIndex < 0 || !run.settings || typeof run.settings !== 'object' ||
         !Array.isArray(run.actions) || run.actions.length > MAX_ACTIONS) throw new Error('저장 형식 오류');
     run.settings = window.GoyaSimEngine.validateSettings(run.settings);
+    // 자료판이 바뀌면 지난 연습을 다른 봉에 잇지 않는다. 앞부분이 그대로인 판(resumeCompatibleWith)과 자료판 표시가 없던 옛 기록만 이어 간다.
+    const catalog = window.GOYA_SIM_CATALOG, compatible = [catalog.version].concat(Array.isArray(catalog.resumeCompatibleWith) ? catalog.resumeCompatibleWith : []);
+    if (run.catalogVersion !== undefined && (typeof run.catalogVersion !== 'string' || !compatible.includes(run.catalogVersion))) throw new Error('자료판 불일치');
     if (run.carryBalance !== null && (!Number.isFinite(run.carryBalance) || run.carryBalance !== run.settings.initialBalance)) throw new Error('이월 잔액 오류');
     for (const action of run.actions) {
       if (!action || (action.k !== 's' && action.k !== 'a') ||
@@ -140,6 +143,9 @@
       }
     }
     state.engine = engine; state.run = run; state.carryBalance = run.carryBalance; state.caseIndex = caseIndex; state.visitedCases = visitedCases;
+    // 옛 자료판(앞부분이 같은 판)에서 저장한 연습은 새 판에서 이어 가고, 기록의 자료판 표시를 새 판으로 바꿔 둔다.
+    const upgraded = run.catalogVersion !== window.GOYA_SIM_CATALOG.version;
+    if (upgraded) { run.catalogVersion = window.GOYA_SIM_CATALOG.version; saveRun(); }
     state.notes = snapshot.decisions.map(item => item.note || ''); state.mode = run.mode; updateModeView();
     const fields = { leverage: 'leverage', allocationPct: 'allocation', exitMode: 'exit-mode', takeProfitPct: 'take-profit', stopLossPct: 'stop-loss' };
     Object.entries(fields).forEach(([key, id]) => { $(id).value = String(run.settings[key]); });
@@ -149,7 +155,7 @@
     state.answered = answered;
     if (run.mode === 'quiz' && answered) { $('quiz-feedback').textContent = '이 조건의 판단을 복원했습니다. 다음 봉을 보며 연습을 이어가세요.'; $('quiz-feedback').classList.add('answered'); }
     render(snapshot);
-    notify('이전 연습을 이어서 진행합니다 · 판단 ' + snapshot.decisions.length + '회 · 평가 자산 ' + fmt(snapshot.equity) + ' USDT', 'success');
+    notify('이전 연습을 이어서 진행합니다 · 판단 ' + snapshot.decisions.length + '회 · 평가 자산 ' + fmt(snapshot.equity) + ' USDT' + (upgraded ? ' · 보관 자료가 ' + kst(Date.parse(window.GOYA_SIM_CATALOG.anchorUTC) / 1000, true).slice(0, 10) + '까지로 늘어나 그 뒤 봉도 이어서 볼 수 있습니다' : ''), 'success');
   }
   function exitDescription(settings) {
     const brackets = [];
@@ -157,10 +163,15 @@
     if (settings.stopLossPct > 0) brackets.push('추가 손절 ' + settings.stopLossPct + '%');
     return (exitLabels[settings.exitMode] || '청산 규칙 미선택') + ' · ' + (brackets.length ? brackets.join(' / ') : '가격 TP·SL 사용 안 함');
   }
+  // 주문 전 확인: 지금 현금으로 다음 주문에 배정할 증거금·포지션 총금액(명목금액)·진입 수수료. 엔진의 체결 계산(quoteOrder)과 같은 식이며 수량은 다음 봉 시가로 정해진다.
+  function orderPreview(s) {
+    if (s.finished || s.position || s.pending || !(s.cash > 0) || typeof window.GoyaSimEngine.quoteOrder !== 'function') return '';
+    try { const q = window.GoyaSimEngine.quoteOrder(s.settings, s.cash); return '<br>다음 주문 예상: 증거금 ' + fmt(q.margin) + ' · 포지션 총금액 ' + fmt(q.notional) + ' · 진입 수수료 약 ' + fmt(q.entryFee) + ' USDT · 수량은 다음 봉 시가로 정해집니다'; } catch (_) { return ''; }
+  }
   function tradeReason(trade) {
     return (reasonLabels[trade.reason] || trade.reason) + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
   }
-  function mappingLabel(mapping) { return mapping === 'bothrs' ? 'RS 교차 · 우리 연구 규칙' : mapping === 'rls' ? '비교 연구 RL / RS' : mapping === 'cross' ? '비교 연구 Cross 진입' : '미선택'; }
+  function mappingLabel(mapping) { return mapping === 'two' ? '같은 방향 신호 2가지 이상 · 우리 규칙' : mapping === 'bothrs' ? '비교 연구 세 조건 순서 · RS 교차' : mapping === 'rls' ? '비교 연구 RL / RS' : mapping === 'cross' ? '비교 연구 Cross 진입' : '미선택'; }
   // 판단 기록(화면)과 기록 CSV가 같은 문구를 쓴다. 취소된 예약·자동 청산은 내가 누른 판단처럼 보이지 않게 따로 적는다.
   function decisionText(d, i) {
     const note = d.note || state.notes[i] || '';
@@ -178,6 +189,17 @@
   const csvTime = epoch => epoch == null || epoch === '' || !Number.isFinite(Number(epoch)) ? '' : kst(epoch, true) + ' KST';
   const csvSide = side => sideNames[side] || side || '';
   const bpsPct = bps => String(Number((Number(bps) / 100).toFixed(4)));
+  const dataVersion = () => (window.GOYA_SIM_CATALOG && window.GOYA_SIM_CATALOG.version) || '';
+  // 자료 출처 줄: 두 번 받은 기록을 이어 붙인 사실, 뒤 기록에 없는 종목, 자료판 이름.
+  function archiveNote(catalog) {
+    const dates = Array.isArray(catalog.archives) ? catalog.archives.map(a => a && a.date).filter(Boolean) : [];
+    const short = d => d.replace(/^\d{4}-0?/, '').replace(/-0?/, '/');
+    const last = dates[dates.length - 1];
+    const older = last ? catalog.symbols.filter(item => item.lastArchive && item.lastArchive !== last) : [];
+    return (dates.length > 1 ? ' ' + dates.map(short).join('·') + ' 두 번 받은 기록을 이어 붙였습니다(앞부분은 그대로 두고 뒷부분만 더함).' : '')
+      + (older.length ? ' ' + older.map(item => item.ticker + '(' + short(item.lastArchive) + '까지)').join(', ') + '은 뒤 기록에 없어 그때까지만 있습니다.' : '')
+      + (catalog.version ? ' 자료판 ' + catalog.version + '.' : '');
+  }
   function costText(settings) { return '수수료 편도 ' + bpsPct(settings.feeBps) + '% · 슬리피지 편도 ' + bpsPct(settings.slippageBps) + '%'; }
   function bracketText(settings) { return settings.takeProfitPct > 0 || settings.stopLossPct > 0 ? (settings.takeProfitPct > 0 ? '추가 익절 ' + settings.takeProfitPct + '%' : '추가 익절 꺼짐') + ' · ' + (settings.stopLossPct > 0 ? '추가 손절 ' + settings.stopLossPct + '%' : '추가 손절 꺼짐') : '추가 익절·손절 꺼짐'; }
   function analyzeCases() { state.scenarios = window.GoyaScenarios.analyze(state.data, $('cross-mapping').value); }
@@ -200,7 +222,7 @@
       state.engine = window.GoyaSimEngine.create({ ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: state.scenarios.completions, startIndex: item.index, settings: readSettings(), archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 });
       beginRun();
       presentCase(index);
-      notify('세 조건이 모인 시점부터 시작합니다. 먼저 포지션 방향을 선택해 주세요. 이후 판단과 손익은 같은 연습 계좌에 누적됩니다.');
+      notify('진입 조건이 성립한 시점부터 시작합니다. 먼저 포지션 방향을 선택해 주세요. 이후 판단과 손익은 같은 연습 계좌에 누적됩니다.');
     });
   }
   function presentCase(index) {
@@ -210,14 +232,14 @@
       $('decision-note').value = ''; $('quiz-feedback').classList.remove('answered');
       const snapshot = state.engine.snapshot();
       $('case-number').textContent = '실제 신호 조건 · 연습 ' + (index + 1) + ' · 누적 계좌 유지';
-      $('case-prompt').textContent = kst(item.availableAt, true) + ' KST에 세 조건이 모두 확인되었습니다. 판단을 선택한 뒤 실제 과거 가격을 순서대로 진행합니다.';
+      $('case-prompt').textContent = kst(item.availableAt, true) + ' KST에 ' + (item.mapping === 'two' ? '같은 방향 신호 ' + item.steps.length + '가지가' : '세 조건이 모두') + ' 확인되었습니다. 판단을 선택한 뒤 실제 과거 가격을 순서대로 진행합니다.';
       const ordered = item.steps.slice().sort((a,b) => a.time-b.time || ({smart:0,premium:1,cross:2}[a.role] - {smart:0,premium:1,cross:2}[b.role]));
       $('case-evidence').innerHTML = ordered.map((step,i) => {
         const labels = step.labels.map(l => step.role === 'smart' ? (l==='L'?'LL':l==='S'?'SS':l) : l==='SRS'?'RS':l==='LRL'?'RL':l);
-        const title = step.role === 'smart' ? 'Smart 시작' : step.role === 'premium' ? 'Premium 단계' : '교차 신호';
+        const title = step.role === 'smart' ? (item.mapping === 'two' ? 'Smart 신호' : 'Smart 시작') : step.role === 'premium' ? 'Premium 단계' : (item.mapping === 'two' ? 'RL / RS' : '교차 신호');
         return '<div><span class="evidence-order">' + (i+1) + '</span><span class="evidence-title">' + title + '</span><strong>' + escape(labels.join(' · ')) + '</strong><small>' + kst(step.availableAt) + ' 확인</small></div>';
       }).join('');
-      $('quiz-feedback').textContent = snapshot.pending && snapshot.pending.reason === 'opposite_signal' ? '반대 신호를 확인해 기존 포지션 청산이 자동 예약되었습니다. 관망을 선택하고 다음 봉에서 청산 결과를 확인하세요. 반대 방향으로 자동 재진입하지는 않습니다.' : snapshot.position ? '앞서 진입한 포지션을 보유 중입니다. 설정한 반대 신호가 나오면 자동 청산합니다. 이번 조건에서는 청산 예약 또는 관망을 선택하세요.' : '세 조건을 읽고 ' + (window.innerWidth>1000?'오른쪽':'아래') + '에서 롱·숏·관망을 선택하세요. 선택한 다음부터 가격을 진행할 수 있습니다.';
+      $('quiz-feedback').textContent = snapshot.pending && snapshot.pending.reason === 'opposite_signal' ? '반대 신호를 확인해 기존 포지션 청산이 자동 예약되었습니다. 관망을 선택하고 다음 봉에서 청산 결과를 확인하세요. 반대 방향으로 자동 재진입하지는 않습니다.' : snapshot.position ? '앞서 진입한 포지션을 보유 중입니다. 설정한 반대 신호가 나오면 자동 청산합니다. 이번 조건에서는 청산 예약 또는 관망을 선택하세요.' : '신호 카드를 읽고 ' + (window.innerWidth>1000?'오른쪽':'아래') + '에서 롱·숏·관망을 선택하세요. 선택한 다음부터 가격을 진행할 수 있습니다.';
       render(snapshot);
   }
   function nextCaseIndex() {
@@ -281,8 +303,8 @@
     $('month-period').textContent=kst(r.coverage.from,true)+' 봉부터 '+kst(r.coverage.to,true)+' 마감까지 KST · 그래프 날짜는 봉이 끝난 시각';
     const skips={};(r.skippedCompletions||[]).forEach(item=>skips[item.reason]=(skips[item.reason]||0)+1);
     const skipsText=Object.entries(skips).map(([reason,count])=>(skipNames[reason]||reason)+' '+count+'개').join(' · ');
-    $('month-result-note').textContent='세 조건 완성 '+(state.scenarios?state.scenarios.completions.length:'—')+'개 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족으로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
-    $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+timeCell(t.entryAt,' →')+'<br>'+timeCell(t.exitAt)+'</td><td><span class="nw">'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배</span><br><small>'+nwDates(escape(tradeReason(t)))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉: 손절 우선</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
+    $('month-result-note').textContent='진입 조건 성립 '+(state.scenarios?state.scenarios.completions.length:'—')+'개 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족으로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
+    $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+timeCell(t.entryAt,' →')+'<br>'+timeCell(t.exitAt)+'</td><td><span class="nw">'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배</span><br><small>'+nwDates(escape(tradeReason(t)))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉 익절·손절 · 순서 미확정 · 손절로 계산</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
     drawEquity(); queueScrollCheck();
     try { localStorage.setItem(MONTH_KEY,JSON.stringify({version:1,mode:'monthly',ticker:r.ticker,mapping,settings,summary:s,coverage:r.coverage,savedAt:state.month.generatedAt})); } catch(_){}
   }
@@ -337,11 +359,11 @@
     const trigger=x=>x?[x.label,csvTime(x.time),csvTime(x.availableAt)]:['','',''], tail=m=>[m,'','','',exitLabels[m]||m], notEntered='진입 안 함 · 진입시각 칸은 조건 확인 시각';
     const period=res=>'진입·청산 칸은 계산 기간 시작·끝 · 순손익은 미실현 포함'+(res.coverage.completeToArchive?'':' · '+(res.coverage.finishedReason==='data_gap'?'자료 공백으로 ':res.coverage.finishedReason==='insolvent'?'모의 자금 소진으로 ':'')+csvTime(res.coverage.to)+'에서 계산 중단');
     const rows=[['구분','종목','방향','진입시각_KST','청산시각_KST','레버리지','증거금','명목금액','진입가','청산가','수수료','순손익_USDT','청산이유','비고','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST','청산방식']];
-    r.trades.forEach(t=>rows.push(['완료거래',r.ticker,csvSide(t.side),csvTime(t.entryAt),csvTime(t.exitAt),lev,csvNum(t.margin),csvNum(t.notional),csvPrice(t.entryPrice),csvPrice(t.exitPrice),csvNum(t.fees),csvNum(t.netPnl),tradeReason(t),t.ambiguous?'동일 봉 익절·손절: 손절 우선':precisionNames[t.exitTimePrecision]||t.exitTimePrecision,mode,...trigger(t.exitTrigger),exitLabels[mode]||mode]));
+    r.trades.forEach(t=>rows.push(['완료거래',r.ticker,csvSide(t.side),csvTime(t.entryAt),csvTime(t.exitAt),lev,csvNum(t.margin),csvNum(t.notional),csvPrice(t.entryPrice),csvPrice(t.exitPrice),csvNum(t.fees),csvNum(t.netPnl),tradeReason(t),t.ambiguous?'같은 봉 익절·손절 모두 도달 · 순서 미확정 · 손절로 계산':precisionNames[t.exitTimePrecision]||t.exitTimePrecision,mode,...trigger(t.exitTrigger),exitLabels[mode]||mode]));
     if(r.summary.openPosition){const p=r.summary.openPosition;rows.push(['미청산',r.ticker,csvSide(p.side),csvTime(p.entryAt),'',lev,csvNum(p.margin),csvNum(p.notional),csvPrice(p.entryPrice),'',csvNum(p.entryFee),'','미청산 평가','미실현(진입 수수료 빼기 전) '+fmt(p.unrealizedPnl)+' USDT · 진입 수수료 반영 '+fmt(r.summary.unrealizedNetPnl)+' USDT',...tail(mode)]);}
     (r.skippedCompletions||[]).forEach(item=>rows.push(['제외조건',r.ticker,csvSide(item.completion.direction),csvTime(item.completion.availableAt),'',lev,'','','','','','',skipNames[item.reason]||item.reason,notEntered,...tail(mode)]));
     (unusable||[]).forEach(item=>rows.push(['사전제외',r.ticker,csvSide(item.direction),csvTime(item.availableAt),'',lev,'','','','','','',item.reason?skipNames[item.reason]||item.reason:'자료 부족',notEntered,...tail(mode)]));
-    rows.push(['요약',r.ticker,'',csvTime(r.coverage.from),csvTime(r.coverage.to),lev,'','','','',csvNum(r.summary.fees),csvNum(r.summary.netPnl),'최종평가 '+fmt(r.summary.finalEquity)+' USDT',period(r)+' / '+mappingLabel(mapping)+' / 증거금 '+st.allocationPct+'% / '+bracketText(st)+' / '+costText(st)+' / 펀딩비 제외 / 단순 격리 청산 모형',...tail(mode)]);
+    rows.push(['요약',r.ticker,'',csvTime(r.coverage.from),csvTime(r.coverage.to),lev,'','','','',csvNum(r.summary.fees),csvNum(r.summary.netPnl),'최종평가 '+fmt(r.summary.finalEquity)+' USDT',period(r)+' / '+mappingLabel(mapping)+' / 증거금 '+st.allocationPct+'% / '+bracketText(st)+' / '+costText(st)+' / 펀딩비 제외 / 단순 격리 청산 모형 / 자료판 '+dataVersion(),...tail(mode)]);
     state.month.comparison.forEach(item=>rows.push(['청산방식비교',r.ticker,'',csvTime(item.coverage.from),csvTime(item.coverage.to),item.settings.leverage,'','','','',csvNum(item.summary.fees),csvNum(item.summary.netPnl),'실현 '+fmt(item.summary.realizedPnl)+' USDT / 미실현 '+fmt(item.summary.unrealizedNetPnl)+' USDT(진입 수수료 반영)',period(item)+' / 과거 기간 비교',...tail(item.settings.exitMode)]));
     // 파일 이름: 설정 코드 앞에 짧은 한글 이름, 끝에 저장 시각(KST)을 붙여 설정을 바꿔 다시 저장해도 이름이 겹치지 않게 한다.
     downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+lev+'배_'+(exitShort[mode]?exitShort[mode]+'_':'')+mode+'_저장'+kst(Date.now()/1000).replace(/[-:]/g,'').replace(' ','-')+'.csv',$('export-month'),'한 달 결과를 CSV 파일로 저장했습니다.');
@@ -482,7 +504,7 @@
     $('saved-summary').textContent = '새 연습의 판단과 손익은 같은 계좌에 누적됩니다.';
     $('rule-steps').innerHTML = ''; $('rule-result').textContent = '현재 종목의 신호 확인 중'; $('rule-result').className = 'rule-result';
     $('rule-hint').textContent = ''; $('case-evidence').innerHTML = ''; $('case-number').textContent = '실제 신호 조건';
-    $('case-prompt').textContent = '현재 종목에서 세 조건이 모인 시점을 찾고 있습니다.'; $('quiz-feedback').textContent = ''; $('quiz-feedback').classList.remove('answered');
+    $('case-prompt').textContent = '현재 종목에서 진입 조건이 성립한 시점을 찾고 있습니다.'; $('quiz-feedback').textContent = ''; $('quiz-feedback').classList.remove('answered');
     $('practice-summary').textContent = '내 판단으로 진행한 누적 결과가 여기에 표시됩니다.';
     $('chart-heading').innerHTML = escape(state.ticker) + ' <span class="timeframe">1시간봉</span>';
     state.snapshot = null; state.hover = null; state.chart = null; state.fitCase=true; drawChart(); $('chart-empty').textContent = '차트를 불러오는 중입니다.'; $('chart-empty').hidden = false;
@@ -558,7 +580,7 @@
       revealZone('decision');
     }, 'decision');
   }
-  function tradeNote(t) { return (reasonLabels[t.reason] || '청산') + ' 처리 · 이번 거래 순손익 ' + fmt(t.netPnl) + ' USDT' + (t.ambiguous ? ' · 같은 봉 익절·손절 도달: 손절 우선' : ''); }
+  function tradeNote(t) { return (reasonLabels[t.reason] || '청산') + ' 처리 · 이번 거래 순손익 ' + fmt(t.netPnl) + ' USDT' + (t.ambiguous ? ' · 같은 봉 익절·손절 모두 도달(순서 미확정) · 손절로 계산' : ''); }
   // zone: 진행을 누른 곳(재생 줄이면 'playback'). 질문 카드의 진행 버튼은 바로 위 알림 줄만 쓴다.
   function advance(count, zone) {
     if (!state.engine || state.snapshot.finished || (state.mode === 'quiz' && !state.answered)) return;
@@ -581,7 +603,7 @@
       const done = [closed, opened, reserved].filter(Boolean).join(' · ');
       if (nextItem && s.index === nextItem.index && !s.finished) {
         presentCase(next);
-        notify((done ? done + '. ' : '') + '새 세 조건이 완성되어 진행을 멈췄습니다. 누적 자산과 기존 포지션은 그대로입니다. 위 질문을 읽고 ' + decisionWhere() + ' “지금의 판단”에서 고르세요.', '', zone);
+        notify((done ? done + '. ' : '') + '새 진입 조건이 성립해 진행을 멈췄습니다. 누적 자산과 기존 포지션은 그대로입니다. 위 질문을 읽고 ' + decisionWhere() + ' “지금의 판단”에서 고르세요.', '', zone);
         return;
       }
       if (s.finished) showFinish(zone, done);
@@ -617,7 +639,7 @@
     $('next-ticker').title = p ? '보유 포지션을 정리한 뒤 이동할 수 있습니다' : s.pending ? '대기 주문이 처리된 뒤 이동할 수 있습니다' : state.mode === 'quiz' && state.answered && nextCaseIndex() >= 0 ? '이 종목 조건을 모두 마친 뒤 이동할 수 있습니다' : '';
     $('finish-month').disabled = s.finished || !state.answered;
     $('export').disabled = state.saving || exportDisabled();
-    $('order-note').innerHTML = '증거금 ' + fmt(s.settings.allocationPct, 1) + '% · 레버리지 ' + s.settings.leverage + '배<br>' + escape(exitDescription(s.settings)) + '<br>반대 신호 확인 뒤 다음 봉 시가 청산 · 자동 전환 없음';
+    $('order-note').innerHTML = '증거금 ' + fmt(s.settings.allocationPct, 1) + '% · 레버리지 ' + s.settings.leverage + '배' + orderPreview(s) + '<br>' + escape(exitDescription(s.settings)) + '<br>반대 신호 확인 뒤 다음 봉 시가 청산 · 자동 전환 없음';
     if (p) $('position-state').innerHTML += '<small>증거금 ' + fmt(p.margin) + ' / 명목금액 ' + fmt(p.notional) + ' USDT</small>';
     $('progress').textContent = (s.index + 1) + ' / ' + state.data.bars.length + '봉 확인';
     updateReadout(state.hover == null ? s.current : state.chart && state.chart.bars[state.hover] || s.current);
@@ -630,8 +652,27 @@
     const where = (window.innerWidth > 1000 ? '왼쪽' : '위쪽') + ' 차트 아래의 “다음 1시간\u00a0→”을 누르면 체결됩니다.';
     $('pending-state').textContent = (s.pending.reason === 'opposite_signal' ? '반대 ' + (s.pending.trigger && s.pending.trigger.label || '신호') + ' 확인 · 자동 청산' : actionLabels[s.pending.action] || s.pending.action) + ' 대기 · ' + kst(s.pending.expectedFillTime) + '에 시작하는 다음 봉에서 체결 · ' + (state.mode === 'quiz' && !state.answered ? '이번 판단을 고른 뒤 ' : '') + where;
   }
+  // 새 기본 규칙: 종류별(Smart / Premium 단계 / RL·RS) 마지막 신호를 48시간 창 안에서 세어, 같은 방향이 두 가지 이상이면 진입 조건 성립.
+  function renderRuleTwo(s) {
+    const two = window.GoyaScenarios.two || { windowSeconds: 48 * HOUR, minFamilies: 2 };
+    const r = window.GoyaSequence.evaluateAny(s.signals, s.cutoff, { group: 'none', availabilityDelaySeconds: HOUR, windowSeconds: two.windowSeconds, minFamilies: two.minFamilies });
+    const now = s.cutoff - HOUR, hours = Math.round(two.windowSeconds / HOUR);
+    $('rule-hint').textContent = '같은 방향 신호가 서로 다른 종류로 ' + two.minFamilies + '가지 이상 모이면(순서 상관없음, ' + hours + '시간 안) 진입 조건입니다. RL은 롱 쪽, RS는 숏 쪽으로 셉니다. 우리 팀의 연구 규칙입니다.';
+    const rows = [['smart', 'Smart LL / SS'], ['premium', 'Premium L2·L3 / S2·S3'], ['rl', 'RL / RS']].map(([name, title]) => {
+      const st = r.families[name], label = st ? st.evidence.map(e => window.GoyaScenarios.display(e)).join(' · ') : '';
+      const live = st && st.direction !== 'ambiguous' && now - st.time <= two.windowSeconds;
+      const detail = !st ? '아직 없음' : st.direction === 'ambiguous' ? kst(st.time + HOUR) + ' 확인 · ' + label + ' · 같은 봉 반대 신호라 세지 않음' : !live ? kst(st.time + HOUR) + ' 확인 · ' + label + ' · ' + hours + '시간 지나 제외' : kst(st.time + HOUR) + ' 확인 · ' + label + ' · ' + (st.direction === 'long' ? '롱 쪽' : '숏 쪽');
+      return { title, detail, live, direction: live ? st.direction : null };
+    });
+    $('rule-steps').innerHTML = rows.map((row, i) => '<li' + (row.live ? ' class="done"' : '') + '><span>' + (row.live ? '✓' : i + 1) + '</span><div><b>' + escape(row.title) + '</b><small>' + escape(row.detail) + '</small></div></li>').join('');
+    const count = dir => rows.filter(row => row.direction === dir).length, longs = count('long'), shorts = count('short');
+    const last = r.completed[r.completed.length - 1], complete = !!r.armed && !!last && last.direction === r.armed;
+    $('rule-result').className = 'rule-result' + (complete ? ' complete' : '');
+    $('rule-result').textContent = complete ? (r.armed === 'long' ? '롱' : '숏') + ' 신호 ' + count(r.armed) + '가지 · 진입 조건 성립 · ' + kst(last.availableAt) + ' KST' : longs >= 1 || shorts >= 1 ? (longs >= shorts ? '롱 신호 ' + longs + '가지' : '숏 신호 ' + shorts + '가지') + ' · 같은 방향 신호가 하나 더 필요합니다' : '신호를 기다리는 중 · 종류가 다른 같은 방향 신호 ' + two.minFamilies + '가지';
+  }
   function renderRule() {
     const s = state.snapshot, mapping = $('cross-mapping').value;
+    if (mapping === 'two' && s && window.GoyaSequence && window.GoyaSequence.evaluateAny) { renderRuleTwo(s); return; }
     const names = ['Smart LL 또는 SS', '같은 방향 L2·L3 또는 S2·S3', '선택한 교차 신호'];
     let active = null;
     if (mapping && s && window.GoyaSequence) {
@@ -659,11 +700,11 @@
     $('journal-count').textContent = s.decisions.length;
     $('journal-body').innerHTML = s.decisions.length ? s.decisions.map((d, i) => ({ d, i })).reverse().map(({d,i}) => { const text = decisionText(d, i); return '<tr><td>' + timeCell(d.time) + '</td><td>' + escape(text.action) + '</td><td>' + escape(text.reason) + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="empty-row">아직 판단 기록이 없습니다. 차트를 보고 롱·숏·관망을 선택해 보세요.</td></tr>';
     const rows = [];
-    s.trades.forEach(t => { rows.push({ time: t.entryAt, order: 0, label: (t.side === 'long' ? '롱' : '숏') + ' 진입', px: t.entryPrice, qty: t.qty, fee: t.entryFee, pnl: null }); rows.push({ time: t.exitAt, order: 1, label: tradeReason(t), px: t.exitPrice, qty: t.qty, fee: t.exitFee, pnl: t.netPnl, warning: t.ambiguous ? '동시 도달 · 손절 우선' : t.exitTimePrecision === 'bar_close_bound' ? '봉 내부 체결 · 마감 시각 표기' : '' }); });
+    s.trades.forEach(t => { rows.push({ time: t.entryAt, order: 0, label: (t.side === 'long' ? '롱' : '숏') + ' 진입', px: t.entryPrice, qty: t.qty, fee: t.entryFee, pnl: null }); rows.push({ time: t.exitAt, order: 1, label: tradeReason(t), px: t.exitPrice, qty: t.qty, fee: t.exitFee, pnl: t.netPnl, gross: t.grossPnl, warning: t.ambiguous ? '같은 봉에서 익절·손절 모두 도달 · 순서 미확정 · 손절로 계산' : t.exitTimePrecision === 'bar_close_bound' ? '봉 내부 체결 · 마감 시각 표기' : '' }); });
     if (s.position) { const p = s.position; rows.push({ time: p.entryAt, order: 0, label: (p.side === 'long' ? '롱' : '숏') + ' 진입', px: p.entryPrice, qty: p.qty, fee: p.entryFee, pnl: null }); }
     rows.sort((a, b) => b.time - a.time || b.order - a.order);
     $('trades-count').textContent = rows.length;
-    $('trades-body').innerHTML = rows.length ? rows.map(t => '<tr><td>' + timeCell(t.time) + '</td><td>' + nwDates(escape(t.label)) + (t.warning ? '<br><small>' + escape(t.warning) + '</small>' : '') + '</td><td>' + price(t.px) + '<br><small>' + fmt(t.qty, 6) + '개</small></td><td>수수료 ' + fmt(t.fee, 4) + (t.pnl !== null ? '<br><b class="' + (t.pnl >= 0 ? 'positive' : 'negative') + '">순손익 ' + fmt(t.pnl) + '</b>' : '') + '</td></tr>').join('') : '<tr><td colspan="4" class="empty-row">아직 체결된 거래가 없습니다. 예약 후 다음 봉을 진행하면 체결을 확인할 수 있습니다.</td></tr>';
+    $('trades-body').innerHTML = rows.length ? rows.map(t => '<tr><td>' + timeCell(t.time) + '</td><td>' + nwDates(escape(t.label)) + (t.warning ? '<br><small>' + escape(t.warning) + '</small>' : '') + '</td><td>' + price(t.px) + '<br><small>' + fmt(t.qty, 6) + '개</small></td><td>수수료 ' + fmt(t.fee, 4) + (t.pnl !== null ? '<br><small>비용 전 ' + fmt(t.gross) + '</small><br><b class="' + (t.pnl >= 0 ? 'positive' : 'negative') + '">순손익 ' + fmt(t.pnl) + '</b>' : '') + '</td></tr>').join('') : '<tr><td colspan="4" class="empty-row">아직 체결된 거래가 없습니다. 예약 후 다음 봉을 진행하면 체결을 확인할 수 있습니다.</td></tr>';
   }
   function saveSummary() {
     const s = state.snapshot;
@@ -682,9 +723,9 @@
     const trigger = x => x ? [x.label, csvTime(x.time), csvTime(x.availableAt)] : ['', '', ''];
     const rows = [['구분', '종목', '시각_KST', '행동', '진입가', '청산가', '수량', '진입수수료', '청산수수료', '순손익_USDT', '판단이유_처리', '교차기준', '체결시각정밀도','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST','청산방식','진입시각_KST']];
     s.decisions.forEach((d, i) => { const text = decisionText(d, i); rows.push(['판단', s.ticker, csvTime(d.time), text.action, '', '', '', '', '', '', text.reason, mapping, '봉 마감', mode, ...trigger(d.trigger), modeName, '']); });
-    s.trades.forEach(t => rows.push(['완료거래', s.ticker, csvTime(t.exitAt), csvSide(t.side), csvPrice(t.entryPrice), csvPrice(t.exitPrice), csvNum(t.qty, 6), csvNum(t.entryFee, 4), csvNum(t.exitFee, 4), csvNum(t.netPnl), tradeReason(t) + (t.ambiguous ? ' / 익절·손절 같은 봉: 손절 우선' : ''), mapping, precisionNames[t.exitTimePrecision] || t.exitTimePrecision, mode, ...trigger(t.exitTrigger), modeName, csvTime(t.entryAt)]));
+    s.trades.forEach(t => rows.push(['완료거래', s.ticker, csvTime(t.exitAt), csvSide(t.side), csvPrice(t.entryPrice), csvPrice(t.exitPrice), csvNum(t.qty, 6), csvNum(t.entryFee, 4), csvNum(t.exitFee, 4), csvNum(t.netPnl), tradeReason(t) + (t.ambiguous ? ' / 같은 봉 익절·손절 모두 도달 · 순서 미확정 · 손절로 계산' : ''), mapping, precisionNames[t.exitTimePrecision] || t.exitTimePrecision, mode, ...trigger(t.exitTrigger), modeName, csvTime(t.entryAt)]));
     if (s.position) { const p = s.position; rows.push(['미청산', s.ticker, csvTime(p.entryAt), csvSide(p.side), csvPrice(p.entryPrice), '', csvNum(p.qty, 6), csvNum(p.entryFee, 4), '', '', '평가손익 ' + fmt(p.unrealizedPnl) + ' USDT(진입 수수료 빼기 전) / 실제 청산 아님', mapping, precisionNames.open, mode, '', '', '', modeName, csvTime(p.entryAt)]); }
-    rows.push(['요약', s.ticker, csvTime(s.cutoff), '', '', '', '', '', '', csvNum(s.stats.netPnl), '평가자산 ' + fmt(s.equity) + ' USDT / 초기 ' + fmt(s.settings.initialBalance) + ' USDT / 증거금 ' + s.settings.allocationPct + '% / 레버리지 ' + s.settings.leverage + '배 / ' + costText(s.settings) + ' / ' + bracketText(s.settings), mapping, '', mode, '', '', '', modeName, '']);
+    rows.push(['요약', s.ticker, csvTime(s.cutoff), '', '', '', '', '', '', csvNum(s.stats.netPnl), '평가자산 ' + fmt(s.equity) + ' USDT / 초기 ' + fmt(s.settings.initialBalance) + ' USDT / 증거금 ' + s.settings.allocationPct + '% / 레버리지 ' + s.settings.leverage + '배 / ' + costText(s.settings) + ' / ' + bracketText(s.settings) + ' / 자료판 ' + dataVersion(), mapping, '', mode, '', '', '', modeName, '']);
     downloadRows(rows, '지표모의연습_' + s.ticker + '_' + (exitShort[mode] ? exitShort[mode] + '_' : '') + mode + '_' + kst(s.cutoff, true).replace(/[- :]/g, '') + '.csv', $('export'), '판단·완료 거래·미청산 상태·계산 가정을 CSV로 저장했습니다.');
   }
   function signalLabel(event) {
@@ -736,7 +777,7 @@
     state.chart = { bars, x, y, left, right, firstTime, span, width, height, plotW, bottom, steps };
     $('focus-case').disabled = !steps.length;
     $('focus-case').setAttribute('aria-pressed', String(!!state.fitCase));
-    $('chart-signal-key').innerHTML = steps.map(step => '<div class="signal-key-item"><b style="color:'+step.color+'">'+step.number+' · '+escape(step.label)+(step.role==='cross'?' · 교차':'')+'</b><span>표시 봉 '+kst(step.time)+'&nbsp;KST</span><span>확인 '+kst(step.availableAt)+'&nbsp;KST</span></div>').join('') || '<p>완성 조건이 나타나면 해당 세 신호 위치를 함께 강조합니다.</p>';
+    $('chart-signal-key').innerHTML = steps.map(step => '<div class="signal-key-item"><b style="color:'+step.color+'">'+step.number+' · '+escape(step.label)+(step.role==='cross'?' · 교차':'')+'</b><span>표시 봉 '+kst(step.time)+'&nbsp;KST</span><span>확인 '+kst(step.availableAt)+'&nbsp;KST</span></div>').join('') || '<p>진입 조건이 성립하면 모인 신호 위치를 함께 강조합니다.</p>';
     canvas.setAttribute('aria-label', '실제 1시간봉. '+(steps.length ? steps.map(step => step.number+'번 '+step.label+' 표시 봉 '+kst(step.time,true)+' KST, 확인 '+kst(step.availableAt,true)+' KST').join('. ') : '확인한 과거 신호를 표시합니다.')+'. 미래 신호는 숨겨져 있습니다.');
     ctx.font = uiPx(mobile ? 10 : 11) + 'px "Malgun Gothic",sans-serif'; ctx.textBaseline = 'middle';
     for (let tick = 0; tick <= 5; tick++) {
@@ -804,7 +845,7 @@
       if (mobile) { ctx.fillText(stamp[0],cardX+8,cardY+39,cardW-14); ctx.fillText(barMap.has(step.time)?stamp[1]+' 봉':'범위 밖',cardX+8,cardY+58,cardW-14); }
       else ctx.fillText(kst(step.time),cardX+8,cardY+39,cardW-14);
       const visible=barMap.has(step.time);
-      if (!mobile) ctx.fillStyle='#a1b8be', ctx.fillText(visible ? (step.role==='cross'?'교차 신호 · 표시 봉':step.role==='smart'?'Smart · 표시 봉':'Premium · 표시 봉') : '확대 범위 밖 · 함께 보기',cardX+8,cardY+58,cardW-14);
+      if (!mobile) ctx.fillStyle='#a1b8be', ctx.fillText(visible ? (step.role==='cross'?($('cross-mapping').value==='two'?'RL / RS · 표시 봉':'교차 신호 · 표시 봉'):step.role==='smart'?'Smart · 표시 봉':'Premium · 표시 봉') : '확대 범위 밖 · 함께 보기',cardX+8,cardY+58,cardW-14);
       if (!visible) return;
       const b=barMap.get(step.time), xx=x(step.time), mark={cross:step.role==='cross',long:step.direction==='long',color:step.color};
       const yy=anchor(mark,b);
@@ -853,12 +894,12 @@
     // 예전 빌드가 STORE_KEY 에 넣어 둔 한 달 결과는 MONTH_KEY 로 옮긴다. STORE_KEY 는 연습 요약만 담아야 부모 앱 홈 카드가 판단 횟수를 읽는다.
     if (state.saved && state.saved.mode === 'monthly') { try { if (!localStorage.getItem(MONTH_KEY)) localStorage.setItem(MONTH_KEY, JSON.stringify(state.saved)); localStorage.removeItem(STORE_KEY); } catch (_) {} state.saved = null; }
     let run = null, warning = '';
-    try { run = readSavedRun(); } catch (_) { removeSavedRun(); warning = '이전 연습 기록을 읽지 못해 지우고 새로 시작합니다.'; }
+    try { run = readSavedRun(); } catch (error) { removeSavedRun(); warning = error && error.message === '자료판 불일치' ? '보관 자료가 새 판으로 바뀌어 이전 연습을 이어갈 수 없어 새로 시작합니다. 연습 요약은 남아 있습니다.' : '이전 연습 기록을 읽지 못해 지우고 새로 시작합니다.'; }
     if (run) { $('cross-mapping').value = run.mapping; state.mode = run.mode; }
     state.ticker = run ? run.ticker : defaultTicker();
     updateTickerOptions(); updateModeView();
     $('ticker').value = state.ticker; $('ticker').disabled = false;
-    $('data-period').textContent = kst(Date.parse(catalog.windowStartUTC) / 1000, true) + ' ~ ' + kst(Date.parse(catalog.anchorUTC) / 1000, true) + ' KST 기준 · ' + catalog.symbols.length + '종목. 기준 시각까지 마감된 시간봉만 포함합니다.';
+    $('data-period').textContent = kst(Date.parse(catalog.windowStartUTC) / 1000, true) + ' ~ ' + kst(Date.parse(catalog.anchorUTC) / 1000, true) + ' KST 기준 · ' + catalog.symbols.length + '종목. 기준 시각까지 마감된 시간봉만 포함합니다.' + archiveNote(catalog);
     $('ticker').addEventListener('change', () => { discardRun(); loadTicker($('ticker').value); });
     ['quiz','month','manual'].forEach(mode => $('mode-'+mode).addEventListener('click',()=>changeMode(mode)));
     $('new-run').addEventListener('click', () => newRun());
