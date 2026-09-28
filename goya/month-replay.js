@@ -9,6 +9,7 @@
     var d = new Date(Number(seconds) * 1000 + 9 * HOUR * 1000), z = function (x) { return String(x).padStart(2, '0'); };
     return z(d.getUTCMonth() + 1) + '/' + z(d.getUTCDate()) + (dateOnly ? '' : ' ' + z(d.getUTCHours()) + ':' + z(d.getUTCMinutes()));
   }
+  var EXIT_SHORT = { stop_loss: '손절', trailing_stop: '추적 손절', take_profit: '익절', liquidation: '강제청산', end_of_sample: '기간 말 정리' };
   function signalMark(event) {
     var source = event.source, value = event.signal;
     if (source === 'ut_signal2' && /^(L|S)$/.test(value)) return { label: value === 'L' ? 'LL' : 'SS', long: value === 'L', family: 'Smart' };
@@ -64,6 +65,7 @@
       if (event.type === 'exit' && Number.isFinite(event.netPnl)) parts.push('실현 PNL ' + money(event.netPnl, true) + ' USDT');
       if (event.label && isTrade(event)) parts.push(event.label);
       if (event.precision === 'bar_close_bound') parts.push('봉 내 체결 · 마감 시각 표기');
+      if (event.precision === 'close') parts.push('마지막 봉 종가 정리');
       if (event.ambiguous) parts.push('같은 봉 익절·손절 · 순서 미확정 · 손절로 계산');
       return parts.join(' · ');
     }
@@ -218,10 +220,19 @@
       bars.forEach(function (b) { if (Number.isFinite(b.goya)) { lows.push(b.goya); highs.push(b.goya); } if (b.bb) { if(Number.isFinite(b.bb.lower))lows.push(b.bb.lower); if(Number.isFinite(b.bb.upper))highs.push(b.bb.upper); } });
       if (current.position && Number.isFinite(current.position.entryPrice)) { lows.push(current.position.entryPrice); highs.push(current.position.entryPrice); }
       var fixedStop=current.position&&current.position.stopLoss||current.pending&&current.pending.stopLoss;
-      if(candleSeconds!==HOUR&&Number.isFinite(fixedStop)){lows.push(fixedStop);highs.push(fixedStop);}
+      // 시간봉 재생에서도 초기·추적 손절선과 익절선을 그린다. 그 프레임까지 확정된 값만 쓴다(미래 고저 참조 없음).
+      var stopLine=current.position&&Number.isFinite(current.position.stopLoss)?current.position.stopLoss:(candleSeconds!==HOUR&&Number.isFinite(fixedStop)?fixedStop:NaN);
+      // 추적 손절을 쓰는 포지션만 ‘초기/추적’으로 부른다. 추적이 없으면(연구실 포함) 끝까지 그대로인 ‘고정 손절’이다.
+      var trailing=current.position&&current.position.settings&&current.position.settings.trailPct>0;
+      var stopName=current.position&&current.position.stopKind==='trailing'?'추적 손절 ':trailing?'초기 손절 ':'고정 손절 ';
+      var stopPath=candleSeconds===HOUR&&current.position&&Array.isArray(current.stopPath)&&current.stopPath.length?current.stopPath:null;
+      if(stopPath)stopPath.forEach(function(seg){if(Number.isFinite(seg.value)){lows.push(seg.value);highs.push(seg.value);}});
+      var tpLine=current.position&&Number.isFinite(current.position.takeProfit)?current.position.takeProfit:NaN;
+      if(Number.isFinite(stopLine)){lows.push(stopLine);highs.push(stopLine);}
+      if(Number.isFinite(tpLine)){lows.push(tpLine);highs.push(tpLine);}
       if(candleSeconds!==HOUR){(current.pending&&current.pending.remaining||[]).forEach(function(order){if(Number.isFinite(order.limit)){lows.push(order.limit);highs.push(order.limit);}});}
       var low = Math.min.apply(null, lows), high = Math.max.apply(null, highs), pad = Math.max((high - low) * .23, Math.abs(high) * .004, 0.00000001); low -= pad; high += pad;
-      var first = bars[0].time, last = bars[bars.length - 1].time, timeSpan = Math.max(candleSeconds, last - first + candleSeconds);
+      var first = bars[0].time, last = bars[bars.length - 1].time, timeSpan = Math.max(candleSeconds, last - first + 2 * candleSeconds); // 오른쪽 끝에 다음 봉 자리 한 칸: 다음 시가 주문·다음 봉부터 적용되는 손절선을 여기에 보인다
       function x(t) { return left + (t - first + candleSeconds * .5) / timeSpan * plotWidth; }
       function y(value) { return bottom - (value - low) / (high - low) * (bottom - top); }
       ctx.font = '14px "Malgun Gothic", sans-serif'; ctx.textBaseline = 'middle';
@@ -260,7 +271,9 @@
         ctx.font = 'bold 14px "Malgun Gothic", sans-serif';
         var labelWidth = ctx.measureText(value).width + 10, lx = Math.max(left + labelWidth / 2, Math.min(w - right - labelWidth / 2, xx));
         yy = Math.max(top + 12, Math.min(bottom - 12, yy));
-        for (var lane = 0; lane < 6; lane++) { if (!occupied.some(function (b) { return Math.abs(b.x - lx) < (b.width + labelWidth) / 2 + 2 && Math.abs(b.y - yy) < 22; })) break; yy += yy < (top + bottom) / 2 ? 22 : -22; }
+        // 비켜 갈 방향은 처음 한 번만 정한다(가운데를 넘나들며 두 자리 사이를 오가지 않게).
+        var laneStep = yy < (top + bottom) / 2 ? 22 : -22;
+        for (var lane = 0; lane < 6; lane++) { if (!occupied.some(function (b) { return Math.abs(b.x - lx) < (b.width + labelWidth) / 2 + 2 && Math.abs(b.y - yy) < 22; })) break; yy += laneStep; }
         yy = Math.max(top + 12, Math.min(bottom - 12, yy)); occupied.push({ x: lx, y: yy, width: labelWidth });
         ctx.fillStyle = fill || '#212328'; ctx.fillRect(lx - labelWidth / 2, yy - 10, labelWidth, 20); ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.fillText(value, lx, yy);
       }
@@ -282,15 +295,33 @@
       }
       if(candleSeconds!==HOUR){
         (current.pending&&current.pending.remaining||[]).forEach(function(order){if(!Number.isFinite(order.limit))return;var ly=y(order.limit);ctx.strokeStyle='#bd9b55';ctx.setLineDash([2,5]);ctx.beginPath();ctx.moveTo(left,ly);ctx.lineTo(w-right,ly);ctx.stroke();ctx.setLineDash([]);label('대기 '+order.number+'/3',left+48,ly-12,'#e5c479');});
-        if(Number.isFinite(fixedStop)){var sy=y(fixedStop);ctx.strokeStyle='#dc7d84';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(left,sy);ctx.lineTo(w-right,sy);ctx.stroke();ctx.setLineDash([]);label('고정 손절 '+price(fixedStop),left+92,sy+13,'#f2a0a7');}
       }
+      // 손절·익절 글자는 진입선의 반대쪽에 둔다(진입 글자와 겹치지 않게).
+      var entryPrice=current.position&&Number.isFinite(current.position.entryPrice)?current.position.entryPrice:null;
+      var awayFromEntry=function(value){return entryPrice!==null&&value>entryPrice?-13:13;};
+      if(stopPath){
+        // 손절선을 값이 유효했던 구간에만 계단 모양으로 그린다. 지금 값을 이미 지난 봉 위에 소급해 긋지 않는다.
+        var slot=plotWidth*candleSeconds/timeSpan,lastStart=left;
+        ctx.strokeStyle='#dc7d84';ctx.setLineDash([5,5]);ctx.lineWidth=1.4;
+        stopPath.forEach(function(seg,i){
+          if(!Number.isFinite(seg.value))return;
+          var next=stopPath[i+1],x0=Math.max(left,x(seg.time)-slot/2),x1=next?Math.min(w-right,x(next.time)-slot/2):w-right;
+          if(x1<=left||x0>=w-right)return;
+          var yy=y(seg.value);ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);
+          if(next&&Number.isFinite(next.value))ctx.lineTo(x1,y(next.value));
+          ctx.stroke();lastStart=x0;
+        });
+        ctx.setLineDash([]);ctx.lineWidth=1;
+        if(Number.isFinite(stopLine))label(stopName+price(stopLine),Math.max(left+92,lastStart+70),y(stopLine)+awayFromEntry(stopLine),'#f2a0a7');
+      } else if(Number.isFinite(stopLine)){var sy=y(stopLine);ctx.strokeStyle='#dc7d84';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(left,sy);ctx.lineTo(w-right,sy);ctx.stroke();ctx.setLineDash([]);label(stopName+price(stopLine),left+92,sy+awayFromEntry(stopLine),'#f2a0a7');}
+      if(Number.isFinite(tpLine)){var ty=y(tpLine);ctx.strokeStyle='#6fb98f';ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(left,ty);ctx.lineTo(w-right,ty);ctx.stroke();ctx.setLineDash([]);label('익절 '+price(tpLine),left+92,ty+awayFromEntry(tpLine),'#a8dcbd');}
       shownEvents.forEach(function (event) {
-        var eventBarTime = Number.isFinite(event.barTime) ? event.barTime : event.precision === 'bar_close_bound' ? event.time - candleSeconds : event.time;
+        var eventBarTime = Number.isFinite(event.barTime) ? event.barTime : event.precision === 'bar_close_bound' || event.precision === 'close' ? event.time - candleSeconds : event.time;
         var bar = barMap.get(eventBarTime); if (!bar || !Number.isFinite(event.price)) return;
         var xx = x(eventBarTime), yy = y(event.price), buy = event.type === 'entry' ? event.side !== 'short' : event.side === 'short';
         var color = event.type === 'exit' ? '#f3d791' : buy ? '#f5a59b' : '#8ec7f5';
         ctx.strokeStyle = color; ctx.fillStyle = '#212328'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(xx, yy, event.type === 'exit' ? 5 : 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        label(event.type === 'exit' ? '청산' : buy ? 'BUY' : 'SELL', xx, yy + (buy ? 34 : -34), color);
+        label(event.type === 'exit' ? (EXIT_SHORT[event.reason] || '청산') : buy ? 'BUY' : 'SELL', xx, yy + (buy ? 34 : -34), color);
         if (activeEvent === event && effectUntil > now() && !reduced.matches) {
           var phase = Math.min(1, (now() - pulseStart) / 740); ctx.globalAlpha = (1 - phase) * .8; ctx.lineWidth = 2; ctx.strokeStyle = color;
           ctx.beginPath(); ctx.arc(xx, yy, 8 + phase * 23, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;

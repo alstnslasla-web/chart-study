@@ -7,11 +7,21 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   var HOUR = 3600;
+  // 2026-09-28 ZEC 연구 후보 반영: 추적 손절(trailActivationPct 이상 유리하게 가면 최고가·최저가 대비 trailPct 되돌림, 봉 마감 후 갱신·다음 봉부터 적용),
+  // 반대 LL/SS 또는 L2·L3/S2·S3 중 1개 청산(opposite_core), 기간 말 비용 포함 정리(endOfSample 'close').
+  // signalWindowHours·entryDelayBars·entryFilter 는 진입 조건 계산(GoyaScenarios.prepareEntries)이 쓰는 값이며, 기록·CSV 에 남기려고 설정에 함께 담는다.
   var DEFAULTS = Object.freeze({ initialBalance: 10000, allocationPct: 10, leverage: 1,
-    feeBps: 4, slippageBps: 2, takeProfitPct: 0, stopLossPct: 0, exitMode: 'opposite_smart' });
-  var EXIT_MODES = ['opposite_smart', 'opposite_complete', 'tp_sl'];
+    feeBps: 4, slippageBps: 2, takeProfitPct: 0, stopLossPct: 0, exitMode: 'opposite_smart',
+    trailActivationPct: 0, trailPct: 0, endOfSample: 'mark',
+    signalWindowHours: 48, entryDelayBars: 0, entryFilter: 'none' });
+  var EXIT_MODES = ['opposite_smart', 'opposite_core', 'opposite_complete', 'tp_sl'];
+  var ENTRY_FILTERS = ['none', 'goya', 'body', 'breakout'];
+  var END_POLICIES = ['mark', 'close'];
+  var ENUMS = { exitMode: [EXIT_MODES, '지원하지 않는 포지션 정리 방식입니다.'], entryFilter: [ENTRY_FILTERS, '지원하지 않는 방향 확인 방식입니다.'], endOfSample: [END_POLICIES, '지원하지 않는 기간 말 처리 방식입니다.'] };
   var LIMITS = { initialBalance: [1, 1e12], allocationPct: [0.01, 100], leverage: [1, 10],
-    feeBps: [0, 1000], slippageBps: [0, 1000], takeProfitPct: [0, 99.99], stopLossPct: [0, 99.99] };
+    feeBps: [0, 1000], slippageBps: [0, 1000], takeProfitPct: [0, 99.99], stopLossPct: [0, 99.99],
+    trailActivationPct: [0, 99.99], trailPct: [0, 99.99], signalWindowHours: [1, 720], entryDelayBars: [0, 48] };
+  var INTEGERS = ['entryDelayBars'];
 
   function fail(code, message) { var e = new Error(message); e.code = code; throw e; }
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -19,14 +29,15 @@
   function validateSettings(input) {
     var result = Object.assign({}, DEFAULTS, input || {});
     Object.keys(result).forEach(function (key) {
-      if (key === 'exitMode') {
-        if (EXIT_MODES.indexOf(result[key]) < 0) fail('INVALID_SETTINGS', '지원하지 않는 포지션 정리 방식입니다.');
+      if (Object.prototype.hasOwnProperty.call(ENUMS, key)) {
+        if (ENUMS[key][0].indexOf(result[key]) < 0) fail('INVALID_SETTINGS', ENUMS[key][1]);
         return;
       }
       if (!Object.prototype.hasOwnProperty.call(LIMITS, key)) fail('INVALID_SETTINGS', '알 수 없는 설정: ' + key);
       var range = LIMITS[key];
       if (!finite(result[key]) || result[key] < range[0] || result[key] > range[1])
         fail('INVALID_SETTINGS', key + ' 설정은 ' + range[0] + ' ~ ' + range[1] + ' 범위의 숫자여야 합니다.');
+      if (INTEGERS.indexOf(key) >= 0 && !Number.isInteger(result[key])) fail('INVALID_SETTINGS', key + ' 설정은 정수여야 합니다.');
     });
     return result;
   }
@@ -66,7 +77,9 @@
       if (!s || !finite(s.time) || s.time < 0) fail('INVALID_SIGNAL', i + '번 신호의 시간이 올바르지 않습니다.');
       return { value: clone(s), order: i };
     }).sort(function (a, b) { return a.value.time - b.value.time || a.order - b.order; });
-    var completions = options.completions === undefined ? [] : completionRows(options.completions);
+    // 반대 진입 조건(②) 청산은 exitCompletions(관찰봉·방향 확인을 거치지 않은 원래 조건 목록)를 본다. 없으면 completions 를 그대로 쓴다.
+    var exitSource = options.exitCompletions !== undefined ? options.exitCompletions : options.completions;
+    var completions = exitSource === undefined ? [] : completionRows(exitSource);
     var archiveEnd = options.archiveEnd === undefined ? bars[bars.length - 1].time + HOUR : options.archiveEnd;
     if (!finite(archiveEnd)) fail('INVALID_ARCHIVE_END', '기록 기준 시각은 초 단위 숫자여야 합니다.');
     var lastIndex = bars.length - 1;
@@ -86,10 +99,17 @@
       if (index >= lastIndex) {
         cancelPending('archive_end');
         finished = true; finishReason = 'archive_end';
+        // 기간 말 정리(endOfSample 'close'): 마지막 마감 봉 종가에 불리한 슬리피지·수수료를 적용해 청산하고 자산 곡선에 정리 뒤 값을 한 점 더 남긴다.
+        if (position && settings.endOfSample === 'close') { closePosition(bars[index], bars[index].c, 'end_of_sample'); markEquity(); }
         if (position) warn('OPEN_POSITION_AT_END', '기록 끝의 미청산 포지션은 마지막 종가로 평가합니다. 실제 청산이나 청산 수수료를 가정하지 않습니다.');
       }
     }
     function markEquity() { equityCurve.push({ time: cutoff(), equity: equity() }); }
+    // 실제로 일어난 일을 적는다: 기간 말 정리 설정이어도 자료 공백 등으로 기록 끝 전에 멈추면 남은 포지션은 평가만 한다(없는 봉에 체결을 만들지 않는다).
+    function endPolicy() {
+      if (settings.endOfSample !== 'close') return 'unrealized_mark_to_last_close_no_forced_exit';
+      return finished && position ? 'unrealized_mark_after_early_stop' : 'closed_at_last_close_with_costs';
+    }
     function snapshot() {
       var current = bars[index], pos = position ? clone(position) : null;
       if (pos) {
@@ -123,12 +143,15 @@
           isolatedLossCap: 'reserved_margin_excluding_paid_entry_fee',
           shortModel: 'isolated_directional_paper_pnl', gapPolicy: 'freeze_before_gap',
           exitMode: settings.exitMode, oppositeExitFill: 'next_open_after_new_visible_opposite',
-          oppositeExitAutomaticReverse: false, bracketsOptionalInEveryMode: true
+          oppositeExitAutomaticReverse: false, bracketsOptionalInEveryMode: true,
+          trailingStop: settings.trailPct > 0 ? { activationPct: settings.trailActivationPct, trailPct: settings.trailPct, basis: 'best_high_low_since_entry_including_entry_bar', update: 'after_bar_close_effective_next_bar', gapFill: 'worse_open_not_stop_price', neverLoosens: true } : null,
+          endPositionPolicy: endPolicy(),
+          entryRule: { signalWindowHours: settings.signalWindowHours, entryDelayBars: settings.entryDelayBars, entryFilter: settings.entryFilter, appliedBy: 'GoyaScenarios.prepareEntries' }
         } });
     }
     function reset(startIndex, nextSettings) {
       var newSettings = validateSettings(Object.assign({}, settings || options.settings || {}, nextSettings || {}));
-      if (newSettings.exitMode === 'opposite_complete' && options.completions === undefined)
+      if (newSettings.exitMode === 'opposite_complete' && options.completions === undefined && options.exitCompletions === undefined)
         fail('INVALID_COMPLETIONS', '반대 진입 조건 정리에는 완성 신호 배열이 필요합니다.');
       var newIndex = startIndex === undefined ? (options.startIndex === undefined ? 0 : options.startIndex) : startIndex;
       if (!Number.isInteger(newIndex) || newIndex < 0 || newIndex > lastIndex)
@@ -175,13 +198,15 @@
       var gross = rawGross + isolatedLossAdjustment;
       cash += Math.max(0, rawReturn);
       var exactOpen = reason === 'manual' || reason === 'opposite_signal' || (detail && detail.gap);
+      // 기간 말 정리는 마지막 봉 종가에 정확히 체결한다(봉 안 어느 시점인지 모르는 손절·익절과 다르다).
+      var precision = reason === 'end_of_sample' ? 'close' : exactOpen ? 'open' : 'bar_close_bound';
       trades.push(Object.assign({}, clone(p), { exitPrice: exitPrice, exitNotional: exitNotional, exitFee: exitFee,
         grossPnl: gross, rawGrossPnl: rawGross, fees: fees, netPnl: gross - fees,
         returnPct: (gross - fees) / p.margin * 100, notionalReturnPct: (gross - fees) / p.notional * 100,
         lossCapped: isolatedLossAdjustment > 0, isolatedLossAdjustment: isolatedLossAdjustment,
         exitAt: exactOpen ? bar.time : bar.time + HOUR, exitTime: exactOpen ? bar.time : bar.time + HOUR,
         exitBarTime: bar.time, exitBarIndex: index,
-        exitTimePrecision: exactOpen ? 'open' : 'bar_close_bound', reason: reason,
+        exitTimePrecision: precision, reason: reason,
         ambiguous: Boolean(detail && detail.ambiguous), gapFill: Boolean(detail && detail.gap),
         baseExitPrice: basePrice, exitNote: detail && detail.note ? detail.note : '',
         exitTrigger: detail && detail.trigger ? clone(detail.trigger) : null }));
@@ -200,8 +225,12 @@
         // even when a signal exit was waiting for this same opening price.
         var liquidatedAtOpen = order.reason === 'opposite_signal' &&
           (position.side === 'long' ? bar.o <= position.liquidationPrice : bar.o >= position.liquidationPrice);
-        closePosition(bar, bar.o, liquidatedAtOpen ? 'liquidation' : (order.reason || 'manual'),
-          { gap: liquidatedAtOpen, note: order.note, trigger: order.trigger });
+        // 예약된 자동 청산과 같은 시가에 손절선(초기·추적)을 넘는 갭이 나면 보호 주문이 먼저다(연구 엔진과 같은 순서). 체결가는 같은 시가.
+        var stopGapAtOpen = order.reason === 'opposite_signal' && !liquidatedAtOpen && position.stopLoss !== null &&
+          (position.side === 'long' ? bar.o <= position.stopLoss : bar.o >= position.stopLoss);
+        var closeReason = liquidatedAtOpen ? 'liquidation' : stopGapAtOpen ? (position.stopKind === 'trailing' ? 'trailing_stop' : 'stop_loss') : (order.reason || 'manual');
+        closePosition(bar, bar.o, closeReason,
+          { gap: liquidatedAtOpen || stopGapAtOpen, note: stopGapAtOpen ? order.note + ' · 같은 시가에 손절선을 넘는 갭이 먼저 닿아 손절로 기록' : order.note, trigger: order.trigger });
         return;
       }
       var cfg = order.settings, side = order.action;
@@ -215,16 +244,30 @@
         liquidationPrice: entryPrice * (1 + (side === 'long' ? -1 : 1) * (1 / cfg.leverage - 0.005)),
         entryFee: entryFee, settings: clone(cfg), entryNote: order.note,
         takeProfit: cfg.takeProfitPct > 0 ? entryPrice * (1 + (side === 'long' ? 1 : -1) * cfg.takeProfitPct / 100) : null,
-        stopLoss: cfg.stopLossPct > 0 ? entryPrice * (1 + (side === 'long' ? -1 : 1) * cfg.stopLossPct / 100) : null };
+        stopLoss: cfg.stopLossPct > 0 ? entryPrice * (1 + (side === 'long' ? -1 : 1) * cfg.stopLossPct / 100) : null,
+        stopKind: cfg.stopLossPct > 0 ? 'initial' : null, best: entryPrice, trailActive: false };
+    }
+    // 추적 손절: 이 봉까지의 최고가(롱)·최저가(숏)로 새 손절선을 계산하되 이 봉의 저가·고가에 소급 적용하지 않는다(다음 봉부터 유효).
+    // 손절선은 유리한 쪽으로만 옮기며 초기 손절보다 느슨해지지 않는다. 진입 봉의 고저도 최고가·최저가에 포함한다.
+    function updateTrail(bar) {
+      if (!position || finished) return;
+      var p = position, long = p.side === 'long', cfg = p.settings;
+      if (!(cfg.trailPct > 0)) return;
+      p.best = long ? Math.max(p.best, bar.h) : Math.min(p.best, bar.l);
+      var favorable = (long ? p.best / p.entryPrice - 1 : 1 - p.best / p.entryPrice) * 100;
+      if (favorable < cfg.trailActivationPct) return;
+      var next = p.best * (1 + (long ? -1 : 1) * cfg.trailPct / 100);
+      if (p.stopLoss === null || (long ? next > p.stopLoss : next < p.stopLoss)) { p.stopLoss = next; p.stopKind = 'trailing'; p.trailActive = true; }
     }
     function checkBrackets(bar) {
       if (!position || finished) return;
       var p = position, long = p.side === 'long', sl = p.stopLoss, tp = p.takeProfit, liq = p.liquidationPrice;
+      var stopReason = p.stopKind === 'trailing' ? 'trailing_stop' : 'stop_loss';
       var gapLiquidation = long ? bar.o <= liq : bar.o >= liq;
       if (gapLiquidation) { closePosition(bar, bar.o, 'liquidation', { gap: true }); return; }
       var gapStop = sl !== null && (long ? bar.o <= sl : bar.o >= sl);
       var gapProfit = tp !== null && (long ? bar.o >= tp : bar.o <= tp);
-      if (gapStop) { closePosition(bar, bar.o, 'stop_loss', { gap: true }); return; }
+      if (gapStop) { closePosition(bar, bar.o, stopReason, { gap: true }); return; }
       if (gapProfit) { closePosition(bar, tp, 'take_profit', { gap: true }); return; }
       var hitLiquidation = long ? bar.l <= liq : bar.h >= liq;
       var hitStop = sl !== null && (long ? bar.l <= sl : bar.h >= sl);
@@ -234,7 +277,7 @@
         closePosition(bar, liq, 'liquidation', { ambiguous: hitProfit });
         if (hitProfit) warn('AMBIGUOUS_TP_LIQUIDATION', '한 봉에서 익절·청산선을 모두 지난 경우 봉 안 순서를 알 수 없어 불리한 청산을 먼저 계산했습니다.');
       } else if (hitStop) {
-        closePosition(bar, sl, 'stop_loss', { ambiguous: hitProfit });
+        closePosition(bar, sl, stopReason, { ambiguous: hitProfit });
         if (hitProfit) warn('AMBIGUOUS_TP_SL', '한 봉에서 익절·손절 가격을 모두 지나 순서를 알 수 없는 거래는 손절 우선으로 계산했습니다.');
       } else if (hitProfit) closePosition(bar, tp, 'take_profit');
     }
@@ -252,7 +295,20 @@
       // Historical signals visible before entry must never be reused.
       function isNew(availableAt) { return availableAt > previousCutoff && availableAt > position.entryAt && availableAt <= now; }
       var trigger = null;
-      if (settings.exitMode === 'opposite_smart') {
+      if (settings.exitMode === 'opposite_core') {
+        // 반대 LL/SS 또는 L2·L3/S2·S3 중 1개. 같은 봉에 같은 종류의 롱·숏이 함께 찍히면(방향 불명) 그 종류는 세지 않는다(연구 엔진과 같은 규칙).
+        var fams = [{ type: 'smart', source: 'ut_signal2', long: ['L'], short: ['S'] }, { type: 'premium', source: 'analysis_signal', long: ['L2', 'L3'], short: ['S2', 'S3'] }];
+        for (var fi = 0; fi < fams.length && !trigger; fi++) {
+          var fam = fams[fi], rows = events.filter(function (row) { var s = row.value; return s.source === fam.source && s.group === 'none' && (fam.long.indexOf(s.signal) >= 0 || fam.short.indexOf(s.signal) >= 0) && isNew(s.time + HOUR); });
+          var hit = rows.find(function (row) { return (opposite === 'long' ? fam.long : fam.short).indexOf(row.value.signal) >= 0; });
+          if (!hit) continue;
+          var ambiguous = rows.some(function (row) { return row.value.time === hit.value.time && (opposite === 'long' ? fam.short : fam.long).indexOf(row.value.signal) >= 0; });
+          if (ambiguous) continue;
+          var sig = hit.value;
+          trigger = { type: fam.type, direction: opposite, label: fam.type === 'smart' ? (opposite === 'long' ? 'LL' : 'SS') : sig.signal,
+            time: sig.time, availableAt: sig.time + HOUR, observedAt: now, source: sig.source, group: sig.group, source_index: sig.source_index };
+        }
+      } else if (settings.exitMode === 'opposite_smart') {
         var found = events.find(function (row) {
           var s = row.value;
           return s.source === 'ut_signal2' && s.group === 'none' &&
@@ -297,7 +353,7 @@
         }
         var previousCutoff = cutoff();
         index++;
-        executePending(next); checkBrackets(next); checkOppositeExit(previousCutoff); markEquity();
+        executePending(next); checkBrackets(next); updateTrail(next); checkOppositeExit(previousCutoff); markEquity();
         if (!finished) finishIfEnd();
       }
       return snapshot();
@@ -360,15 +416,16 @@
       summary: Object.assign({}, state.stats, { initialBalance: state.settings.initialBalance,
         finalEquity: state.equity, cash: state.cash, openPosition: state.position,
         acceptedCount: accepted.length, filledCount: accepted.filter(function (a) { return a.filled; }).length,
-        skippedCount: skipped.length, forcedEndClose: false }),
+        skippedCount: skipped.length, forcedEndClose: state.trades.some(function (t) { return t.reason === 'end_of_sample'; }) }),
       acceptedCompletions: accepted, skippedCompletions: skipped, coverage: coverage,
       warnings: state.warnings, assumptions: Object.assign({}, state.assumptions, {
         mode: 'whole_archive_backtest', entryRule: 'first_next_open_after_completion_visible',
         simultaneousCompletions: 'stable_input_order_first_when_flat', whilePositionOpen: 'skip_not_queue',
         oppositeExitBeforeEntry: true, reuseExitCompletionForEntry: false,
-        endPositionPolicy: 'unrealized_mark_to_last_close_no_forced_exit'
+        endPositionPolicy: state.assumptions.endPositionPolicy
       }) });
   }
   return Object.freeze({ create: create, runStrategy: runStrategy, defaults: DEFAULTS,
-    candleSeconds: HOUR, validateSettings: validateSettings, quoteOrder: quoteOrder });
+    candleSeconds: HOUR, validateSettings: validateSettings, quoteOrder: quoteOrder,
+    exitModes: EXIT_MODES.slice(), entryFilters: ENTRY_FILTERS.slice(), endPolicies: END_POLICIES.slice() });
 });

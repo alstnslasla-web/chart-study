@@ -4,7 +4,7 @@
    data-mode: parent(배움터 본체) · frame(goya/index.html 모의연습) · lab(goya/entry-lab.html 진입 조합 연구실) */
 (function () {
   'use strict';
-  var BUILD = "e67bbd0497";
+  var BUILD = "80868a462c";
   var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js","data/goya-summary.js"],"parentCode":["app.js","shared/motion.js","premium.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","ticker-search.js","ui.js","../shared/motion.js","premium.js"],"lab":["goya/data/catalog.js"],"labCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","entry-lab-engine.js","entry-lab-timeline.js","ticker-search.js","bb-execution.js","entry-lab-ui.js"]};
   var KEY_STORE = 'cb:link-key';
   var me = document.currentScript;

@@ -7,13 +7,24 @@
   const MAX_ACTIONS = 20000;
   const HOUR = 3600;
   const actionLabels = { long: '롱 진입', short: '숏 진입', close: '청산', wait: '관망', cancel: '예약 취소' };
-  const reasonLabels = { manual: '청산 예약', opposite_signal: '반대 신호 청산', take_profit: '익절', stop_loss: '손절', liquidation: '단순 모형 강제청산' };
-  const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 진입 조건 성립까지 보유 · 실험', tp_sl: '가격 TP / SL로 청산' };
+  const reasonLabels = { manual: '청산 예약', opposite_signal: '반대 신호 청산', take_profit: '익절', stop_loss: '손절', trailing_stop: '추적 손절', end_of_sample: '기간 말 정리 · 비용 포함', liquidation: '단순 모형 강제청산' };
+  const exitLabels = { opposite_smart: '① 반대 Smart LL / SS에 청산', opposite_complete: '② 반대 진입 조건 성립까지 보유 · 실험', opposite_core: '③ 반대 LL / SS 또는 L2·L3 / S2·S3 중 1개에 청산', tp_sl: '가격 TP / SL로 청산' };
+  // 2026-09-28 설정 조합(프리셋). 연구 항목을 따로 만들지 않고, 기존 선택 항목의 값을 한 번에 채우는 선택지다. 값은 ZEC 연구 인계 문서(2026-09-28)의 재현값.
+  const PRESET_FIELDS = { leverage: 'leverage', allocationPct: 'allocation', exitMode: 'exit-mode', takeProfitPct: 'take-profit', stopLossPct: 'stop-loss', signalWindowHours: 'signal-window', entryDelayBars: 'entry-delay', entryFilter: 'entry-filter', trailActivationPct: 'trail-activation', trailPct: 'trail-width', endOfSample: 'end-of-sample' };
+  const PRESETS = {
+    default: { label: '기본', settings: { exitMode: 'opposite_smart', leverage: 1, allocationPct: 10, takeProfitPct: 0, stopLossPct: 0, signalWindowHours: 48, entryDelayBars: 0, entryFilter: 'none', trailActivationPct: 0, trailPct: 0, endOfSample: 'mark' },
+      note: '지금까지의 기본 방식입니다. 같은 방향 신호 2가지 이상(48시간 안)이 모이면 다음 봉 시가에 진입하고, 반대 LL/SS가 나오면 다음 시가에 정리합니다. 레버리지 1배·증거금 10%, 추가 익절·손절과 추적 손절은 꺼져 있습니다.' },
+    zec_candidate: { label: 'ZEC 연구 후보 · 24h 2종 + 3/2 추적', settings: { exitMode: 'opposite_smart', leverage: 3, allocationPct: 50, takeProfitPct: 0, stopLossPct: 2, signalWindowHours: 24, entryDelayBars: 0, entryFilter: 'goya', trailActivationPct: 3, trailPct: 2, endOfSample: 'close' },
+      note: 'ZECUSDT 보관 기록(8/24~9/27, 816봉)을 사후 계산해 고른 연구 후보입니다. 24시간 안 같은 방향 2종이 모이고 종가가 GOYA LINE 방향이면 다음 시가 진입, 초기 손절 2%, 3% 이익부터 최고가·최저가 대비 2% 추적 손절, 반대 LL/SS 청산, 기간 말 비용 포함 정리. 3배·증거금 50%에서 +83.34%(최종 18,334 USDT), 최대 낙폭 10.81%, 30거래 19승이었습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였고, 앞 24일로 고른 규칙을 뒤 10일에 적용하면 +6.98%, 매주 다시 고르는 순차 검증 합계는 −2.74%였습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다.' },
+    user_reference: { label: '사용자 아이디어 기준안 · 48h 2종 + 1봉 관찰 + 3/2 추적', settings: { exitMode: 'opposite_core', leverage: 3, allocationPct: 50, takeProfitPct: 0, stopLossPct: 3, signalWindowHours: 48, entryDelayBars: 1, entryFilter: 'none', trailActivationPct: 3, trailPct: 2, endOfSample: 'close' },
+      note: '사용자 아이디어(같은 방향 2개 → 한 봉 관찰 → 진입 → 수익 나면 추적 손절 → 반대 신호 1개에 청산)를 숫자로 옮긴 기준안입니다. 48시간 안 같은 방향 2종이 모이면 한 봉 더 보고(관찰 중 반대 신호가 나오면 취소) 그다음 시가 진입, 초기 손절 3%, 3% 이익부터 2% 추적 손절, 반대 LL/SS 또는 L2·L3/S2·S3 하나에 청산, 기간 말 비용 포함 정리. ZECUSDT 3배·증거금 50%에서 +34.23%, 최대 낙폭 15.36%, 35거래(추적 손절을 끄면 +25.96%)였습니다. 손절·추적 숫자는 사용자가 정하지 않아 정리자가 가정한 값이며 실제 수동 매매를 복원한 결과가 아닙니다. 뒤 10일 구간에서는 이 기준안(+11.37%)이 연구 후보(+6.98%)보다 높았습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다.' }
+  };
+  const CUSTOM_NOTE = '아래 값을 직접 정한 설정입니다. 조합을 고르면 그 값으로 바뀌고, 값을 하나라도 바꾸면 다시 ‘직접 설정’이 됩니다.';
   // CSV·안내문에 앱 내부 코드(long, open, after_data_gap 등)가 그대로 나가지 않게 쓰는 한글 이름. 파일 이름 앞 짧은 이름은 exitShort.
   const sideNames = { long: '롱', short: '숏' };
-  const precisionNames = { open: '봉 시가 체결', bar_close_bound: '봉 내부 체결 · 마감 시각 표기' };
-  const skipNames = { position_open: '포지션 보유', position_exists: '포지션 보유', order_pending: '주문 대기', no_next_open: '다음 시가 없음', before_start: '시작 이전', data_gap: '자료 공백', simulation_finished: '연습 종료', duplicate_completion: '동시 조건 중복', invalid_completion: '유효하지 않은 조건', after_data_gap: '자료 공백으로 멈춘 뒤', after_insolvency: '자금 소진으로 멈춘 뒤', outside_closed_archive: '보관 기간 밖', end_no_next_bar: '기록 끝 · 다음 봉 없음', insolvent: '자금 소진', completion_bar_missing: '조건 봉 자료 없음' };
-  const exitShort = { opposite_smart: '반대신호청산', opposite_complete: '반대조건보유', tp_sl: '가격익절손절' };
+  const precisionNames = { open: '봉 시가 체결', bar_close_bound: '봉 내부 체결 · 마감 시각 표기', close: '마지막 봉 종가 정리 · 비용 포함' };
+  const skipNames = { position_open: '포지션 보유', position_exists: '포지션 보유', order_pending: '주문 대기', no_next_open: '다음 시가 없음', before_start: '시작 이전', data_gap: '자료 공백', simulation_finished: '연습 종료', duplicate_completion: '동시 조건 중복', invalid_completion: '유효하지 않은 조건', after_data_gap: '자료 공백으로 멈춘 뒤', after_insolvency: '자금 소진으로 멈춘 뒤', outside_closed_archive: '보관 기간 밖', end_no_next_bar: '기록 끝 · 다음 봉 없음', insolvent: '자금 소진', completion_bar_missing: '조건 봉 자료 없음', opposite_during_wait: '관찰 중 반대 신호', filter_goya: 'GOYA LINE 방향 불일치', filter_body: '관찰봉 몸통 불일치', filter_breakout: '신호봉 고저 돌파 안 됨' };
+  const exitShort = { opposite_smart: '반대신호청산', opposite_complete: '반대조건보유', opposite_core: '반대1개청산', tp_sl: '가격익절손절' };
   // 누른 버튼 바로 아래 안내 줄. 맨 위 알림 줄(#status)은 그대로 두고, 마지막으로 누른 곳의 줄에도 같은 문구를 쓴다. 흐린 버튼의 이유도 여기에 보인다.
   const zoneNotes = { playback: ['playback-note', 'action-note on-dark'], decision: ['decision-feedback', 'action-note decision-feedback'], export: ['export-note', 'action-note'], month: ['export-month-note', 'action-note'], comparison: ['comparison-note', 'action-note'] };
   function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(14, Math.round(n * base / 16)); }
@@ -34,9 +45,90 @@
   function timeCell(epoch, tail = '') { const [day, hour] = kst(epoch).split(' '); return hour ? '<span class="nw">' + day + '</span> <span class="nw">' + hour + escape(tail) + '</span>' : escape(day + tail); }
   function localDate(epoch) { return new Date(epoch * 1000 + 9 * HOUR * 1000).toISOString().slice(0, 16); }
   function epochOfInput(value) { return Date.parse(value + '+09:00') / 1000; }
+  // 빈 칸(옛 화면·시험 환경)은 기본값으로 읽는다. 숫자가 아닌 글은 그대로 넘겨 엔진 검증이 오류를 내게 둔다.
+  function fieldNumber(id, fallback) { const raw = $(id).value; return raw === '' || raw == null ? fallback : Number(raw); }
+  function windowHoursSetting() { const n = fieldNumber('signal-window', 48); return Number.isFinite(n) && n > 0 ? n : 48; }
+  function formSettings() {
+    return { leverage: Number($('leverage').value), allocationPct: Number($('allocation').value), exitMode: $('exit-mode').value, takeProfitPct: Number($('take-profit').value), stopLossPct: Number($('stop-loss').value),
+      signalWindowHours: fieldNumber('signal-window', 48), entryDelayBars: fieldNumber('entry-delay', 0), entryFilter: $('entry-filter').value || 'none', trailActivationPct: fieldNumber('trail-activation', 0), trailPct: fieldNumber('trail-width', 0), endOfSample: $('end-of-sample').value || 'mark' };
+  }
   function readSettings() {
     const initialBalance = state.carryBalance === null ? Number($('initial-balance').value) : state.carryBalance;
-    return window.GoyaSimEngine.validateSettings({ initialBalance, leverage: Number($('leverage').value), allocationPct: Number($('allocation').value), exitMode: $('exit-mode').value, takeProfitPct: Number($('take-profit').value), stopLossPct: Number($('stop-loss').value), feeBps: 4, slippageBps: 2 });
+    return window.GoyaSimEngine.validateSettings({ initialBalance, ...formSettings(), feeBps: 4, slippageBps: 2 });
+  }
+  // 설정 조합 선택 상자: 현재 칸 값이 어느 조합과 같은지 표시한다(초기 자산·비용은 조합에 포함하지 않는다).
+  function currentPresetId() {
+    if ($('cross-mapping').value !== 'two') return 'custom';
+    const f = formSettings();
+    return Object.keys(PRESETS).find(id => Object.entries(PRESETS[id].settings).every(([key, value]) => f[key] === value)) || 'custom';
+  }
+  function syncPreset() {
+    const id = currentPresetId();
+    $('preset').value = id; $('preset-note').textContent = PRESETS[id] ? PRESETS[id].note : $('cross-mapping').value !== 'two' ? '설정 조합은 모두 ‘같은 방향 신호 2가지 이상’ 규칙 기준입니다. 지금은 비교 연구용 옛 순서 규칙이 선택돼 있어 직접 설정으로 표시합니다. 조합을 고르면 우리 규칙으로 되돌립니다.' : CUSTOM_NOTE;
+    return id;
+  }
+  // 신호봉 고저 돌파 확인은 관찰봉이 1 이상일 때만 뜻이 있다(관찰봉 0이면 판단 봉이 조건 봉 자체라 종가가 그 고가를 넘을 수 없다).
+  function updateFilterOptions() {
+    const filter = $('entry-filter'), delay = fieldNumber('entry-delay', 0);
+    if (typeof filter.querySelector === 'function') { const option = filter.querySelector('option[value="breakout"]'); if (option) option.disabled = delay === 0; }
+    if (delay === 0 && filter.value === 'breakout') { filter.value = 'none'; return true; }
+    return false;
+  }
+  // 진입 규칙(대응 규칙·신호 유효시간)이 바뀌면 조건 목록을 다시 계산하고 현재 연습을 새 조건으로 다시 시작한다(옛 창의 사례·② 청산 목록이 남지 않게).
+  // 지워질 연습 기록의 판단 수(안내용). 한 달 화면에서는 잠시 넣어 둔 신호 맞추기 연습 계좌를 센다.
+  function droppedDecisions() {
+    const engine = state.mode === 'month' ? (state.quizRun && state.quizRun.engine) || state.engine : state.engine;
+    try { return engine ? engine.snapshot().decisions.length : 0; } catch (_) { return 0; }
+  }
+  function restartText(dropped) {
+    return (dropped ? ' 이전 연습 기록(판단 ' + dropped + '회)은 새 진입 조건과 맞지 않아 지웠습니다.' : '') +
+      (state.mode === 'month' ? ' 한 달 차트 재생을 누르면 새 설정으로 계산합니다.' : state.mode === 'quiz' ? ' 새 설정으로 첫 조건부터 다시 시작했습니다.' : ' 새 설정으로 연습을 다시 시작했습니다.');
+  }
+  function ruleChanged() {
+    const dropped = droppedDecisions();
+    stop(); discardRun(); state.quizRun=null; updateTickerOptions(); clearMonth(); syncPreset();
+    if (!state.data) { loadTicker(state.ticker); return dropped; }
+    analyzeCases();
+    if (state.mode==='quiz') startCase(0);
+    else if (state.mode==='manual') newRun(state.snapshot ? state.snapshot.index : undefined);
+    else { state.engine=null; state.snapshot=null; }
+    return dropped;
+  }
+  function applyPreset(id) {
+    const preset = PRESETS[id];
+    if (!preset) { syncPreset(); return; }
+    const before = { window: windowHoursSetting() };
+    Object.entries(preset.settings).forEach(([key, value]) => { $(PRESET_FIELDS[key]).value = String(value); });
+    updateFilterOptions();
+    $('preset').value = id; $('preset-note').textContent = preset.note;
+    // 세 조합 모두 ‘같은 방향 신호 2가지 이상’ 규칙 기준이다. 옛 순서 규칙이 선택돼 있으면 우리 규칙으로 되돌린다.
+    const remap = $('cross-mapping').value !== 'two'; if (remap) $('cross-mapping').value = 'two';
+    const catalog = window.GOYA_SIM_CATALOG;
+    const toZec = id === 'zec_candidate' && state.ticker !== 'ZECUSDT' && !!catalog && catalog.symbols.some(item => item.ticker === 'ZECUSDT');
+    const head = '‘' + preset.label + '’ 조합의 값을 채웠습니다.' + (remap ? ' 진입 조건 규칙을 ‘같은 방향 신호 2가지 이상’으로 되돌렸습니다.' : '');
+    // 종목을 바꾸면 불러오기 안내가 뒤따르므로, 조합 안내는 불러오기가 성공한 뒤에만 보인다(실패·다른 선택으로 밀린 불러오기에는 덮어쓰지 않는다).
+    if (toZec) {
+      const dropped = droppedDecisions();
+      $('ticker').value = 'ZECUSDT'; discardRun(); updateTickerOptions();
+      const loading = loadTicker('ZECUSDT'), version = state.loadVersion;
+      Promise.resolve(loading).then(() => { if (state.loadVersion === version && state.data && state.ticker === 'ZECUSDT' && $('preset').value === id) notify(head + ' 연습 코인을 연구 종목 ZECUSDT로 바꿨습니다.' + restartText(dropped)); });
+      return;
+    }
+    if (remap || windowHoursSetting() !== before.window) { const dropped = ruleChanged(); notify(head + restartText(dropped)); return; }
+    stop(); clearMonth();
+    notify(head + ' ' + (state.mode === 'month' ? '한 달 차트 재생' : '이 조건부터 새 계좌로 / 새 연습 시작') + '을 누르면 이 설정으로 계산합니다.');
+  }
+  function settingsChanged(id) {
+    const switched = (id === 'entry-delay' || id === 'entry-filter') && updateFilterOptions();
+    if (id !== 'initial-balance') syncPreset();
+    if (id === 'signal-window') { const dropped = ruleChanged(); notify('신호 유효시간을 ' + windowHoursSetting() + '시간으로 바꿔 진입 조건을 다시 계산했습니다.' + restartText(dropped)); return; }
+    stop(); clearMonth();
+    notify((switched ? '신호봉 고저 돌파 확인은 관찰봉이 1 이상일 때만 가능해 방향 확인을 ‘없음’으로 바꿨습니다. ' : '') + '설정이 바뀌었습니다. ' + (state.mode === 'month' ? '한 달 시뮬레이션 실행' : '이 조건부터 새 계좌로 / 새 연습 시작') + '을 누르면 새 설정을 적용합니다.');
+  }
+  function entryRuleText(settings, mapping) {
+    const filters = { none: '방향 확인 없음', goya: 'GOYA LINE 방향 확인', body: '관찰봉 몸통 방향 확인', breakout: '신호봉 고저 돌파 확인' };
+    const window = mapping && mapping !== 'two' ? '신호 유효시간 미적용(옛 순서 규칙)' : '신호 유효 ' + settings.signalWindowHours + '시간';
+    return window + ' · ' + (settings.entryDelayBars > 0 ? settings.entryDelayBars + '봉 더 관찰 뒤 진입' : '조건 확인 다음 시가 진입') + ' · ' + (filters[settings.entryFilter] || settings.entryFilter);
   }
   function caseCount(ticker) {
     const counts = window.GOYA_SIM_CASES && window.GOYA_SIM_CASES.counts;
@@ -119,6 +211,9 @@
     return run;
   }
   function restoreRun(run) {
+    // 저장 연습의 설정(신호 유효시간 포함)을 먼저 화면에 되돌리고 그 창으로 조건을 다시 계산해야 반대 조건 청산·질문 위치가 저장 당시와 같다.
+    Object.entries(PRESET_FIELDS).forEach(([key, id]) => { $(id).value = String(run.settings[key]); });
+    updateFilterOptions(); syncPreset(); analyzeCases();
     const engine = window.GoyaSimEngine.create({ ticker: run.ticker, bars: state.data.bars, signals: state.data.signals, completions: state.scenarios.completions, startIndex: run.startIndex, settings: run.settings, archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC) / 1000 });
     let snapshot = engine.snapshot(), caseIndex = -1, answered = false;
     const visitedCases = new Set();
@@ -148,8 +243,6 @@
     const upgraded = run.catalogVersion !== window.GOYA_SIM_CATALOG.version;
     if (upgraded) { run.catalogVersion = window.GOYA_SIM_CATALOG.version; saveRun(); }
     state.notes = snapshot.decisions.map(item => item.note || ''); state.mode = run.mode; updateModeView();
-    const fields = { leverage: 'leverage', allocationPct: 'allocation', exitMode: 'exit-mode', takeProfitPct: 'take-profit', stopLossPct: 'stop-loss' };
-    Object.entries(fields).forEach(([key, id]) => { $(id).value = String(run.settings[key]); });
     if (run.carryBalance === null) $('initial-balance').value = String(run.settings.initialBalance);
     $('start-date').value = localDate(state.data.bars[run.startIndex].time + HOUR);
     if (run.mode === 'quiz') presentCase(caseIndex);
@@ -162,7 +255,8 @@
     const brackets = [];
     if (settings.takeProfitPct > 0) brackets.push('추가 익절 ' + settings.takeProfitPct + '%');
     if (settings.stopLossPct > 0) brackets.push('추가 손절 ' + settings.stopLossPct + '%');
-    return (exitLabels[settings.exitMode] || '청산 규칙 미선택') + ' · ' + (brackets.length ? brackets.join(' / ') : '가격 TP·SL 사용 안 함');
+    if (settings.trailPct > 0) brackets.push('추적 손절 ' + settings.trailActivationPct + '% 이익부터 ' + settings.trailPct + '% 되돌림');
+    return (exitLabels[settings.exitMode] || '청산 규칙 미선택') + ' · ' + (brackets.length ? brackets.join(' / ') : '가격 TP·SL 사용 안 함') + (settings.endOfSample === 'close' ? ' · 기간 말 비용 포함 정리' : '');
   }
   // 주문 전 확인: 지금 현금으로 다음 주문에 배정할 증거금·포지션 총금액(명목금액)·진입 수수료. 엔진의 체결 계산(quoteOrder)과 같은 식이며 수량은 다음 봉 시가로 정해진다.
   function orderPreview(s) {
@@ -170,7 +264,7 @@
     try { const q = window.GoyaSimEngine.quoteOrder(s.settings, s.cash); return '<br>다음 주문 예상: 증거금 ' + fmt(q.margin) + ' · 포지션 총금액 ' + fmt(q.notional) + ' · 진입 수수료 약 ' + fmt(q.entryFee) + ' USDT · 수량은 다음 봉 시가로 정해집니다'; } catch (_) { return ''; }
   }
   function tradeReason(trade) {
-    return (reasonLabels[trade.reason] || trade.reason) + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
+    return (reasonLabels[trade.reason] || trade.reason) + (trade.gapFill && /stop/.test(trade.reason) ? ' · 갭 시가 체결' : '') + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
   }
   function mappingLabel(mapping) { return mapping === 'two' ? '같은 방향 신호 2가지 이상 · 우리 규칙' : mapping === 'bothrs' ? '비교 연구 세 조건 순서 · RS 교차' : mapping === 'rls' ? '비교 연구 RL / RS' : mapping === 'cross' ? '비교 연구 Cross 진입' : '미선택'; }
   // 판단 기록(화면)과 기록 CSV가 같은 문구를 쓴다. 취소된 예약·자동 청산은 내가 누른 판단처럼 보이지 않게 따로 적는다.
@@ -202,8 +296,12 @@
       + (catalog.version ? ' 자료판 ' + catalog.version + '.' : '');
   }
   function costText(settings) { return '수수료 편도 ' + bpsPct(settings.feeBps) + '% · 슬리피지 편도 ' + bpsPct(settings.slippageBps) + '%'; }
-  function bracketText(settings) { return settings.takeProfitPct > 0 || settings.stopLossPct > 0 ? (settings.takeProfitPct > 0 ? '추가 익절 ' + settings.takeProfitPct + '%' : '추가 익절 꺼짐') + ' · ' + (settings.stopLossPct > 0 ? '추가 손절 ' + settings.stopLossPct + '%' : '추가 손절 꺼짐') : '추가 익절·손절 꺼짐'; }
-  function analyzeCases() { state.scenarios = window.GoyaScenarios.analyze(state.data, $('cross-mapping').value); }
+  function bracketText(settings) { return (settings.takeProfitPct > 0 || settings.stopLossPct > 0 ? (settings.takeProfitPct > 0 ? '추가 익절 ' + settings.takeProfitPct + '%' : '추가 익절 꺼짐') + ' · ' + (settings.stopLossPct > 0 ? '추가 손절 ' + settings.stopLossPct + '%' : '추가 손절 꺼짐') : '추가 익절·손절 꺼짐') + (settings.trailPct > 0 ? ' · 추적 손절 ' + settings.trailActivationPct + '% 이익부터 ' + settings.trailPct + '% 되돌림' : ''); }
+  function endText(settings, result) {
+    if (settings.endOfSample !== 'close') return '기간 말 미청산 평가';
+    return result && result.summary && result.summary.openPosition && !result.coverage.completeToArchive ? '기간 말 정리 설정 · 기록 끝 전에 멈춰 남은 포지션은 마지막 종가 평가' : '기간 말 비용 포함 정리';
+  }
+  function analyzeCases() { state.scenarios = window.GoyaScenarios.analyze(state.data, $('cross-mapping').value, { windowHours: windowHoursSetting() }); }
   function startCase(index) {
     if (!state.data) return;
     stop(); state.caseIndex = index; state.answered = false; state.notes = []; state.hover = null; state.visitedCases = new Set(); state.quizRun = null; $('decision-note').value = '';
@@ -295,7 +393,7 @@
     if (monthPlayer) monthPlayer.destroy();
     month.completed=false; $('month-results').hidden=true; $('month-empty').hidden=true;
     $('month-replay').hidden=false;
-    $('month-rule').textContent=month.result.ticker+' · 1시간봉 · '+mappingLabel(month.mapping)+' · 증거금 '+month.result.settings.allocationPct+'% · '+month.result.settings.leverage+'배 · '+exitDescription(month.result.settings);
+    $('month-rule').textContent=month.result.ticker+' · 1시간봉 · '+mappingLabel(month.mapping)+' · '+entryRuleText(month.result.settings, month.mapping)+' · 증거금 '+month.result.settings.allocationPct+'% · '+month.result.settings.leverage+'배 · '+exitDescription(month.result.settings);
     monthPlayer=window.GoyaMonthReplay.create({
       host:$('month-replay'),
       onRestart:() => { if (state.month===month) { month.completed=false; $('month-results').hidden=true; } },
@@ -324,11 +422,14 @@
       if (job!==monthJob) return;
       const ok=safeRun(() => {
         analyzeCases();
-        const options = { ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: state.scenarios.completions, settings: readSettings(), archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 };
+        const settings = readSettings();
+        // 진입 시점 규칙(추가 관찰봉·방향 확인)은 조건 목록을 미리 걸러 엔진에 넘긴다. 취소된 조건은 사전 제외 목록에 함께 적는다.
+        const prepared = window.GoyaScenarios.prepareEntries(state.data, state.scenarios.completions, { delayBars: settings.entryDelayBars, filter: settings.entryFilter });
+        const options = { ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: prepared.completions, exitCompletions: state.scenarios.completions, settings, archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 };
         const collected=window.GoyaMonthTimeline.collect(options);
         const result=collected.result;
-        const comparison=['opposite_smart','opposite_complete'].map(exitMode => exitMode===result.settings.exitMode ? result : window.GoyaSimEngine.runStrategy({...options,settings:{...options.settings,exitMode}}));
-        state.month={result,comparison,options,mapping:$('cross-mapping').value,unusable:state.scenarios.unusable,generatedAt:new Date().toISOString(),completed:false};
+        const comparison=['opposite_smart','opposite_complete','opposite_core'].map(exitMode => exitMode===result.settings.exitMode ? result : window.GoyaSimEngine.runStrategy({...options,settings:{...options.settings,exitMode}}));
+        state.month={result,comparison,options,prepared,mapping:$('cross-mapping').value,unusable:state.scenarios.unusable.concat(prepared.cancelled),generatedAt:new Date().toISOString(),completed:false};
         startMonthReplay(collected.frames);
         notify(state.ticker+' 과거 차트 재생 중입니다. 지표와 매매 장면이 해당 시점에 나타납니다.');
         return true;
@@ -341,7 +442,7 @@
     if (!state.month || !state.month.completed) return;
     const {result:r,mapping,unusable} = state.month, s=r.summary, settings=r.settings;
     $('month-results').hidden=false; $('month-empty').hidden=true;
-    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + mappingLabel(mapping) + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
+    $('month-rule').textContent=r.ticker + ' 한 종목 · ' + mappingLabel(mapping) + ' · ' + entryRuleText(settings, mapping) + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
     renderExitComparison();
     const items=[['최종 평가 자산',fmt(s.finalEquity)+' USDT','초기 '+fmt(s.initialBalance)+' USDT'],['최종 PNL · 평가 포함',(s.netPnl>0?'+':'')+fmt(s.netPnl)+' USDT','계좌 수익률 '+fmt(s.returnPct)+'% · 미실현 포함'],['완료 거래',s.tradeCount+'회','진입 체결 '+s.filledCount+'회'],['실현 순손익',fmt(s.realizedPnl)+' USDT','청산을 마친 거래 · 수수료 반영'],['미실현 평가손익',fmt(s.unrealizedNetPnl)+' USDT','열린 포지션 · 진입 수수료 반영'],['총 수수료',fmt(s.fees)+' USDT','진입·청산 수수료 합계'],['최대 낙폭',fmt(s.maxDrawdownPct)+'%','마감 봉 평가 자산 기준'],['건너뛴 조건',s.skippedCount+'개','보유·대기·사용 불가 등']];
     $('month-stats').innerHTML=items.map(([title,value,note],i)=>'<div><span>'+title+'</span><strong'+(i===1?' class="'+(s.netPnl>=0?'positive':'negative')+'"':'')+'>'+value+'</strong><small>'+note+'</small></div>').join('');
@@ -349,23 +450,26 @@
     $('month-period').textContent=kst(r.coverage.from,true)+' 봉부터 '+kst(r.coverage.to,true)+' 마감까지 KST · 그래프 날짜는 봉이 끝난 시각';
     const skips={};(r.skippedCompletions||[]).forEach(item=>skips[item.reason]=(skips[item.reason]||0)+1);
     const skipsText=Object.entries(skips).map(([reason,count])=>(skipNames[reason]||reason)+' '+count+'개').join(' · ');
-    $('month-result-note').textContent='진입 조건 성립 '+(state.scenarios?state.scenarios.completions.length:'—')+'개 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족으로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
+    const cancelled=(state.month.prepared&&state.month.prepared.cancelled||[]).length;
+    $('month-result-note').textContent='진입 조건 성립 '+(state.scenarios?state.scenarios.completions.length:'—')+'개'+(cancelled?'(관찰·방향 확인으로 '+cancelled+'개 취소)':'')+' 중 예약 '+s.acceptedCount+'회.'+(skipsText?' 건너뜀: '+skipsText+'.':'')+' 자료 공백·다음 시가 부족·관찰 취소로 사전 제외 '+(unusable||[]).length+'개.'+(s.openPosition?' 미청산 '+(s.openPosition.side==='long'?'롱':'숏')+' 포지션은 마지막 종가로 평가했으며 강제로 청산하지 않았습니다.'+(settings.endOfSample==='close'&&!r.coverage.completeToArchive?' 기간 말 정리 설정이지만 기록 끝 전에 멈춰 정리하지 않았습니다(없는 봉에 체결을 만들지 않음).':''):s.forcedEndClose?' 기간 말에 남은 포지션은 마지막 종가에 비용을 포함해 정리했습니다(기간 말 정리 설정).':'')+(r.coverage.completeToArchive?'':' 원본 공백 또는 자금 상태로 전체 보관 기간 끝까지 진행하지 못했습니다.')+' 순손익은 비용과 미실현 평가를 반영한 모의 값입니다.';
     $('month-trades').innerHTML=r.trades.length?r.trades.map(t=>'<tr><td>'+timeCell(t.entryAt,' →')+'<br>'+timeCell(t.exitAt)+'</td><td><span class="nw">'+(t.side==='long'?'롱':'숏')+' / '+settings.leverage+'배</span><br><small>'+nwDates(escape(tradeReason(t)))+'</small></td><td>'+price(t.entryPrice)+' → '+price(t.exitPrice)+'<br><small>증거금 '+fmt(t.margin)+' / 명목 '+fmt(t.notional)+'</small></td><td>수수료 '+fmt(t.fees)+'<br><b class="'+(t.netPnl>=0?'positive':'negative')+'">'+fmt(t.netPnl)+' USDT</b>'+(t.ambiguous?'<br><small>같은 봉 익절·손절 · 순서 미확정 · 손절로 계산</small>':'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty-row">완료된 거래가 없습니다. 완성 조건이 없거나 포지션이 아직 청산되지 않았을 수 있습니다.</td></tr>';
     drawEquity(); queueScrollCheck();
     try { localStorage.setItem(MONTH_KEY,JSON.stringify({version:1,mode:'monthly',ticker:r.ticker,mapping,settings,summary:s,coverage:r.coverage,savedAt:state.month.generatedAt})); } catch(_){}
   }
   function renderExitComparison() {
-    const list = state.month.comparison, first = list[0], second = list[1];
-    const difference = first.summary.netPnl - second.summary.netPnl;
+    // 세 가지 신호 청산(① 반대 LL/SS, ② 반대 조건 성립, ③ 반대 1개)을 같은 진입·손절·추적 설정으로 비교한다. 순손익이 가장 높은 방식이 다음 방식과 같으면 우위를 정하지 않는다.
+    const list = state.month.comparison, ranked = list.slice().sort((a, b) => b.summary.netPnl - a.summary.netPnl), top = ranked[0], runner = ranked[1];
+    const difference = runner ? top.summary.netPnl - runner.summary.netPnl : 0;
     const tied = Math.abs(difference) < 0.0000001;
     const openEnded = list.some(item => item.summary.openPosition);
-    const best = tied || openEnded ? null : difference > 0 ? first : second;
-    $('exit-comparison-note').textContent = (openEnded ? '한쪽 이상이 청산 없이 포지션을 보유한 채 기록이 끝나 실현 손익으로는 비교할 수 없습니다. 미청산 평가액은 참고값이며 우위를 정하지 않습니다.' : tied ? '두 청산 방식의 순손익이 같습니다.' : exitLabels[best.settings.exitMode] + ' 방식의 이 기간 순손익이 ' + fmt(Math.abs(difference)) + ' USDT 더 높습니다.') + ' 같은 종목·기간·증거금·레버리지·비용으로 비교했습니다. 미청산 포지션은 마지막 종가로 평가하며, 순손익이 높아도 실현 수익을 뜻하지는 않습니다. 과거 한 달 비교이며 앞으로의 우열은 알 수 없습니다.';
+    const best = tied || openEnded ? null : top;
+    const sameAsTop = item => tied && Math.abs(item.summary.netPnl - top.summary.netPnl) < 0.0000001;
+    $('exit-comparison-note').textContent = (openEnded ? '하나 이상의 방식이 청산 없이 포지션을 보유한 채 기록이 끝나 실현 손익으로는 비교할 수 없습니다. 미청산 평가액은 참고값이며 우위를 정하지 않습니다.' : tied ? '순손익이 가장 높은 청산 방식이 둘 이상이라 우위를 정하지 않습니다(손절·추적 손절이 먼저 닿으면 반대 신호 청산은 쓰이지 않아 결과가 같아질 수 있습니다).' : exitLabels[best.settings.exitMode] + ' 방식의 이 기간 순손익이 다음 방식보다 ' + fmt(Math.abs(difference)) + ' USDT 더 높습니다.') + ' 같은 종목·기간·증거금·레버리지·비용·손절·추적 설정에서 반대 신호 청산 기준만 바꿔 비교했습니다. 미청산 포지션은 마지막 종가로 평가하며, 순손익이 높아도 실현 수익을 뜻하지는 않습니다. 과거 한 달 비교이며 앞으로의 우열은 알 수 없습니다.';
     $('exit-comparison').innerHTML = list.map(item => {
       const s = item.summary, stats = item.snapshot.stats, selected = item.settings.exitMode === state.month.result.settings.exitMode;
       // 선택 버튼은 방식 이름 바로 아래에 둔다(좁은 화면에서 이름과 버튼이 함께 보이게). data-label 은 좁은 화면에서 칸 이름으로 보인다.
       // 완료 거래가 있는데 마지막 포지션만 열려 있으면 '청산 없음'이 아니라 '마지막 포지션 보유 중'이다.
-      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td data-label="청산 시점"><span class="comparison-name">' + escape(exitLabels[item.settings.exitMode]) + '</span>' + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : s.openPosition ? '<span class="comparison-badge">' + (s.tradeCount > 0 ? '마지막 포지션 보유 중' : '청산 없음 · 보유 지속') + '</span>' : tied ? '<span class="comparison-badge">동일 결과</span>' : '') + '<button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '재생한 방식' : '이 방식으로 재생') + '</button></td><td data-label="순손익 · 평가 포함"><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td data-label="실현 / 미실현"><span>' + fmt(stats.realizedPnl) + '</span><small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td data-label="완료 거래"><span>' + s.tradeCount + '회</span><small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td></tr>';
+      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td data-label="청산 시점"><span class="comparison-name">' + escape(exitLabels[item.settings.exitMode]) + '</span>' + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : s.openPosition ? '<span class="comparison-badge">' + (s.tradeCount > 0 ? '마지막 포지션 보유 중' : '청산 없음 · 보유 지속') + '</span>' : sameAsTop(item) ? '<span class="comparison-badge">동일 결과</span>' : '') + '<button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '재생한 방식' : '이 방식으로 재생') + '</button></td><td data-label="순손익 · 평가 포함"><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td data-label="실현 / 미실현"><span>' + fmt(stats.realizedPnl) + '</span><small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td data-label="완료 거래"><span>' + s.tradeCount + '회</span><small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td></tr>';
     }).join('');
   }
   function showComparisonMode(mode) {
@@ -402,14 +506,14 @@
     if(!state.month||!state.month.completed)return;
     const {result:r,mapping,unusable}=state.month, st=r.settings, mode=st.exitMode, lev=st.leverage;
     // 청산모드(설정 코드) 열은 그대로 두고 맨 끝 '청산방식' 열에 한글 이름을 적는다. 숫자 칸은 화면과 같은 자리로만 반올림한다.
-    const trigger=x=>x?[x.label,csvTime(x.time),csvTime(x.availableAt)]:['','',''], tail=m=>[m,'','','',exitLabels[m]||m], notEntered='진입 안 함 · 진입시각 칸은 조건 확인 시각';
+    const trigger=x=>x?[x.label,csvTime(x.time),csvTime(x.availableAt)]:['','',''], tail=m=>[m,'','','',exitLabels[m]||m], notEntered='진입 안 함 · 진입시각 칸은 진입 판단 시각(관찰봉이 있으면 관찰을 마친 봉의 마감)';
     const period=res=>'진입·청산 칸은 계산 기간 시작·끝 · 순손익은 미실현 포함'+(res.coverage.completeToArchive?'':' · '+(res.coverage.finishedReason==='data_gap'?'자료 공백으로 ':res.coverage.finishedReason==='insolvent'?'모의 자금 소진으로 ':'')+csvTime(res.coverage.to)+'에서 계산 중단');
     const rows=[['구분','종목','방향','진입시각_KST','청산시각_KST','레버리지','증거금','명목금액','진입가','청산가','수수료','순손익_USDT','청산이유','비고','청산모드','반대신호','반대신호_표시봉_KST','반대신호_확인_KST','청산방식']];
     r.trades.forEach(t=>rows.push(['완료거래',r.ticker,csvSide(t.side),csvTime(t.entryAt),csvTime(t.exitAt),lev,csvNum(t.margin),csvNum(t.notional),csvPrice(t.entryPrice),csvPrice(t.exitPrice),csvNum(t.fees),csvNum(t.netPnl),tradeReason(t),t.ambiguous?'같은 봉 익절·손절 모두 도달 · 순서 미확정 · 손절로 계산':precisionNames[t.exitTimePrecision]||t.exitTimePrecision,mode,...trigger(t.exitTrigger),exitLabels[mode]||mode]));
     if(r.summary.openPosition){const p=r.summary.openPosition;rows.push(['미청산',r.ticker,csvSide(p.side),csvTime(p.entryAt),'',lev,csvNum(p.margin),csvNum(p.notional),csvPrice(p.entryPrice),'',csvNum(p.entryFee),'','미청산 평가','미실현(진입 수수료 빼기 전) '+fmt(p.unrealizedPnl)+' USDT · 진입 수수료 반영 '+fmt(r.summary.unrealizedNetPnl)+' USDT',...tail(mode)]);}
     (r.skippedCompletions||[]).forEach(item=>rows.push(['제외조건',r.ticker,csvSide(item.completion.direction),csvTime(item.completion.availableAt),'',lev,'','','','','','',skipNames[item.reason]||item.reason,notEntered,...tail(mode)]));
-    (unusable||[]).forEach(item=>rows.push(['사전제외',r.ticker,csvSide(item.direction),csvTime(item.availableAt),'',lev,'','','','','','',item.reason?skipNames[item.reason]||item.reason:'자료 부족',notEntered,...tail(mode)]));
-    rows.push(['요약',r.ticker,'',csvTime(r.coverage.from),csvTime(r.coverage.to),lev,'','','','',csvNum(r.summary.fees),csvNum(r.summary.netPnl),'최종평가 '+fmt(r.summary.finalEquity)+' USDT',period(r)+' / '+mappingLabel(mapping)+' / 증거금 '+st.allocationPct+'% / '+bracketText(st)+' / '+costText(st)+' / 펀딩비 제외 / 단순 격리 청산 모형 / 자료판 '+dataVersion(),...tail(mode)]);
+    (unusable||[]).forEach(item=>rows.push(['사전제외',r.ticker,csvSide(item.direction),csvTime(item.judgedAt!=null?item.judgedAt+HOUR:item.availableAt),'',lev,'','','','','','',item.reason?skipNames[item.reason]||item.reason:'자료 부족',notEntered,...tail(mode)]));
+    rows.push(['요약',r.ticker,'',csvTime(r.coverage.from),csvTime(r.coverage.to),lev,'','','','',csvNum(r.summary.fees),csvNum(r.summary.netPnl),'최종평가 '+fmt(r.summary.finalEquity)+' USDT',period(r)+' / '+mappingLabel(mapping)+' / 증거금 '+st.allocationPct+'% / '+bracketText(st)+' / '+costText(st)+' / 펀딩비 제외 / 단순 격리 청산 모형 / '+entryRuleText(st, mapping)+' / '+endText(st, r)+' / 자료판 '+dataVersion(),...tail(mode)]);
     state.month.comparison.forEach(item=>rows.push(['청산방식비교',r.ticker,'',csvTime(item.coverage.from),csvTime(item.coverage.to),item.settings.leverage,'','','','',csvNum(item.summary.fees),csvNum(item.summary.netPnl),'실현 '+fmt(item.summary.realizedPnl)+' USDT / 미실현 '+fmt(item.summary.unrealizedNetPnl)+' USDT(진입 수수료 반영)',period(item)+' / 과거 기간 비교',...tail(item.settings.exitMode)]));
     // 파일 이름: 설정 코드 앞에 짧은 한글 이름, 끝에 저장 시각(KST)을 붙여 설정을 바꿔 다시 저장해도 이름이 겹치지 않게 한다.
     downloadRows(rows,'한달전략시뮬레이션_'+r.ticker+'_'+lev+'배_'+(exitShort[mode]?exitShort[mode]+'_':'')+mode+'_저장'+kst(Date.now()/1000).replace(/[-:]/g,'').replace(' ','-')+'.csv',$('export-month'),'한 달 결과를 CSV 파일로 저장했습니다.');
@@ -674,7 +778,7 @@
     $('net-pnl').className = s.stats.netPnl > 0 ? 'positive' : s.stats.netPnl < 0 ? 'negative' : '';
     $('practice-summary').textContent = '내 판단의 누적 결과 · 초기 ' + fmt(s.settings.initialBalance) + ' USDT → 평가 자산 ' + fmt(s.equity) + ' USDT · 수익률 ' + fmt(s.stats.returnPct) + '% · 완료 거래 ' + s.trades.length + '회 · 수수료 ' + fmt(s.stats.fees) + ' USDT. 한 달 자동 전략 결과와 별도로 계산합니다.';
     const p = s.position;
-    $('position-state').innerHTML = p ? '<span>' + (p.side === 'long' ? '롱' : '숏') + ' 보유 · ' + fmt(p.qty, 6) + '개</span><small>진입 ' + price(p.entryPrice) + ' · 미실현 ' + fmt(p.unrealizedPnl) + ' USDT<br>익절 ' + (p.takeProfit == null ? '꺼짐' : price(p.takeProfit)) + ' / 손절 ' + (p.stopLoss == null ? '꺼짐' : price(p.stopLoss)) + '</small>' : '보유 포지션 없음';
+    $('position-state').innerHTML = p ? '<span>' + (p.side === 'long' ? '롱' : '숏') + ' 보유 · ' + fmt(p.qty, 6) + '개</span><small>진입 ' + price(p.entryPrice) + ' · 미실현 ' + fmt(p.unrealizedPnl) + ' USDT<br>익절 ' + (p.takeProfit == null ? '꺼짐' : price(p.takeProfit)) + ' / ' + (p.stopKind === 'trailing' ? '추적 손절 ' : '손절 ') + (p.stopLoss == null ? '꺼짐' : price(p.stopLoss)) + (p.settings && p.settings.trailPct > 0 && p.stopKind !== 'trailing' ? ' · 추적 대기(' + p.settings.trailActivationPct + '% 이익부터)' : '') + '</small>' : '보유 포지션 없음';
     renderPending(s);
     $('long').disabled = $('short').disabled = s.finished || !!s.pending || !!p;
     $('close').disabled = s.finished || !!s.pending || !p;
@@ -700,7 +804,9 @@
   }
   // 새 기본 규칙: 종류별(Smart / Premium 단계 / RL·RS) 마지막 신호를 48시간 창 안에서 세어, 같은 방향이 두 가지 이상이면 진입 조건 성립.
   function renderRuleTwo(s) {
-    const two = window.GoyaScenarios.two || { windowSeconds: 48 * HOUR, minFamilies: 2 };
+    const base = window.GoyaScenarios.two || { windowSeconds: 48 * HOUR, minFamilies: 2 };
+    // 신호 창은 이 연습 계좌의 설정(신호 유효시간)을 따른다. 기본 48시간.
+    const two = { windowSeconds: (s.settings && s.settings.signalWindowHours ? s.settings.signalWindowHours : base.windowSeconds / HOUR) * HOUR, minFamilies: base.minFamilies };
     const r = window.GoyaSequence.evaluateAny(s.signals, s.cutoff, { group: 'none', availabilityDelaySeconds: HOUR, windowSeconds: two.windowSeconds, minFamilies: two.minFamilies });
     const now = s.cutoff - HOUR, hours = Math.round(two.windowSeconds / HOUR);
     $('rule-hint').textContent = '같은 방향 신호가 서로 다른 종류로 ' + two.minFamilies + '가지 이상 모이면(순서 상관없음, ' + hours + '시간 안) 진입 조건입니다. RL은 롱 쪽, RS는 숏 쪽으로 셉니다. 우리 팀의 연구 규칙입니다.';
@@ -954,19 +1060,14 @@
     $('finish-month').addEventListener('click',()=>{stop();if(state.data)advance(state.data.bars.length);});
     $('run-month').addEventListener('click',runMonth);
     $('export-month').addEventListener('click',exportMonth);
-    ['initial-balance','leverage','allocation','take-profit','stop-loss','exit-mode'].forEach(id=>$(id).addEventListener('change',()=>{stop();clearMonth();notify('설정이 바뀌었습니다. '+(state.mode==='month'?'한 달 시뮬레이션 실행':'이 조건부터 새 계좌로 / 새 연습 시작')+'을 누르면 새 설정을 적용합니다.');}));
+    ['initial-balance','leverage','allocation','take-profit','stop-loss','exit-mode','signal-window','entry-delay','entry-filter','trail-activation','trail-width','end-of-sample'].forEach(id=>$(id).addEventListener('change',()=>settingsChanged(id)));
+    $('preset').addEventListener('change',()=>applyPreset($('preset').value));
+    updateFilterOptions(); syncPreset();
     $('exit-comparison').addEventListener('click',event=>{ const button = event.target.closest('[data-exit-mode]'); if (button && !button.disabled) showComparisonMode(button.dataset.exitMode); });
     ['long','short','close','wait'].forEach(action => $(action).addEventListener('click', () => submit(action)));
     $('next-hour').addEventListener('click', () => { stop(); advance(1, 'playback'); revealZone('playback'); }); $('next-six').addEventListener('click', () => { stop(); advance(6, 'playback'); revealZone('playback'); });
     $('play').addEventListener('click', () => { if (state.timer) { stop(); return; } if (!state.snapshot || state.snapshot.finished) return; $('play').textContent = 'Ⅱ 일시 정지'; $('play').setAttribute('aria-pressed','true'); state.timer = setInterval(() => advance(1, 'playback'), 1200); });
-    $('cross-mapping').addEventListener('change', () => {
-      stop(); discardRun(); state.quizRun=null; updateTickerOptions(); clearMonth();
-      if (!state.data) { loadTicker(state.ticker); return; }
-      analyzeCases();
-      if (state.mode==='quiz') startCase(0);
-      else if (state.mode==='manual') newRun(state.snapshot ? state.snapshot.index : undefined);
-      else { state.engine=null; state.snapshot=null; }
-    });
+    $('cross-mapping').addEventListener('change', () => { const dropped = ruleChanged(); if (dropped) notify('진입 조건 규칙이 바뀌었습니다.' + restartText(dropped)); });
     ['show-smart','show-premium','show-goya'].forEach(id => $(id).addEventListener('change', queueDraw));
     $('zoom').addEventListener('input', () => { state.fitCase=false; $('zoom-value').textContent = $('zoom').value + '봉'; state.hover=null; if(state.snapshot) updateReadout(state.snapshot.current); queueDraw(); });
     $('focus-case').addEventListener('click', () => { state.fitCase=true; state.hover=null; drawChart(); });

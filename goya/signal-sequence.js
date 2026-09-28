@@ -66,5 +66,5 @@
   }
   return {cutoff,rule:{group,availabilityDelaySeconds:delay,windowSeconds:window,minFamilies:min},families:state,armed,completed};
  }
- return {evaluate,evaluateAny,families:Object.keys(FAMILIES)};
+ return {evaluate,evaluateAny,families:Object.keys(FAMILIES),familyDefinitions:FAMILIES};
 });

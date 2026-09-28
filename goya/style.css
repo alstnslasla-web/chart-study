@@ -143,3 +143,6 @@ th, td { overflow-wrap: break-word; }
 }
 /* 판단 기록의 '판단' 칸은 '자동 청산'·'예약 취소' 같은 짧은 이름이라 한 줄로 둔다(이유 칸이 나머지 폭을 쓴다). */
 #journal-body td:nth-child(2) { white-space: nowrap; }
+/* 2026-09-28 설정 조합(프리셋)·연구 설정 줄 */
+.preset-row{grid-column:1/-1;display:grid;gap:6px}.preset-row select{width:100%;font-size:0.8125rem}.preset-row .optional{color:var(--muted);font-weight:400;font-size:0.7812rem}.preset-note{margin:0;font-size:0.7812rem;color:var(--muted);line-height:1.55}.settings-row select{min-height:37px;font-size:0.7812rem;padding:6px 8px}.research-row{border-top:1px dashed #e4e7de}
+@media (max-width:560px){.setup #date-label{grid-column:1/-1}}
