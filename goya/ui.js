@@ -19,6 +19,7 @@
   function uiPx(n) { const root = document.documentElement; let base = 16; try { if (root && typeof getComputedStyle === 'function') base = parseFloat(getComputedStyle(root).fontSize) || 16; } catch (_) { base = 16; } return Math.max(14, Math.round(n * base / 16)); }
   function applyFontSetting(font) { const f = ['M', 'L', 'XL'].includes(font) ? font : 'L'; const root = document.documentElement; if (!root || !root.dataset) return; if (root.dataset.font === f) return; root.dataset.font = f; if (state.snapshot) queueDraw(); if (state.month) drawEquity(); queueScrollCheck(); }
   const state = { engine: null, snapshot: null, data: null, ticker: 'ZECUSDT', loadVersion: 0, timer: null, notes: [], hover: null, chart: null, chartFrame: 0, mapping: 'two', saved: null, warningCodes: new Set(), mode: 'quiz', scenarios: null, caseIndex: 0, answered: false, month: null, visitedCases: new Set(), quizRun: null, carryBalance: null, run: null, runStopped: false, runWarning: '', zoneNote: null, csvSaved: null, scrollFrame: 0 };
+  let monthPlayer = null, monthJob = 0;
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (n, max = 2) => Number.isFinite(Number(n)) ? Number(n).toLocaleString('ko-KR', { minimumFractionDigits: max === 2 ? 2 : 0, maximumFractionDigits: max }) : '—';
   const price = n => fmt(n, n >= 100 ? 2 : n >= 1 ? 4 : 7);
@@ -254,6 +255,7 @@
   function changeMode(mode) {
     if (mode === state.mode) return;
     stop();
+    if (monthPlayer) monthPlayer.pause();
     if (state.mode === 'quiz' && state.engine) state.quizRun = { engine: state.engine, notes: state.notes, caseIndex: state.caseIndex, answered: state.answered, visitedCases: state.visitedCases, feedback: $('quiz-feedback').textContent, run: state.run, carryBalance: state.carryBalance, runStopped: state.runStopped, runWarning: state.runWarning };
     state.mode = mode;
     updateModeView();
@@ -268,7 +270,7 @@
       } else { discardRun(); startCase(0); }
     }
     else if (mode === 'manual') newRun();
-    else { $('run-month').disabled=false; notify('선택한 한 종목의 한 달 전략 결과를 계산합니다. 설정을 확인한 뒤 실행해 주세요.'); if(state.month)drawEquity(); }
+    else { $('run-month').disabled=false; notify('한 달 차트를 시간순으로 재생합니다. 매매 장면을 본 뒤 최종 PNL을 확인해 보세요.'); if(state.month && state.month.completed)drawEquity(); }
   }
   function updateModeView() {
     const mode = state.mode;
@@ -278,26 +280,69 @@
     $('next-ticker').disabled = !canMoveTicker();
     queueScrollCheck();
   }
-  function clearMonth() { state.month = null; $('month-results').hidden=true; $('month-empty').hidden=false; $('month-empty').innerHTML='실행을 누르면 전체 기간의 모의 결과가 표시됩니다.<br>실제 계좌의 수익이 아닌, 보관 시세에 체결 가정을 적용한 계산입니다.'; }
+  function clearMonth() {
+    monthJob++;
+    if (monthPlayer) monthPlayer.destroy();
+    monthPlayer = null; state.month = null;
+    $('run-month').disabled=!state.data;
+    $('month-replay').hidden=true; $('month-replay').replaceChildren();
+    $('month-results').hidden=true; $('month-empty').hidden=false;
+    $('run-month').textContent='한 달 차트 재생';
+    $('month-empty').innerHTML='한 달 차트 재생을 누르면 캔들과 지표가 시간순으로 나타납니다.<br>진입·청산 장면을 확인한 뒤 최종 수익·손실(PNL)이 열립니다.';
+  }
+  function startMonthReplay(frames) {
+    const month = state.month;
+    if (monthPlayer) monthPlayer.destroy();
+    month.completed=false; $('month-results').hidden=true; $('month-empty').hidden=true;
+    $('month-replay').hidden=false;
+    $('month-rule').textContent=month.result.ticker+' · 1시간봉 · '+mappingLabel(month.mapping)+' · 증거금 '+month.result.settings.allocationPct+'% · '+month.result.settings.leverage+'배 · '+exitDescription(month.result.settings);
+    monthPlayer=window.GoyaMonthReplay.create({
+      host:$('month-replay'),
+      onRestart:() => { if (state.month===month) { month.completed=false; $('month-results').hidden=true; } },
+      onComplete:() => {
+        if (state.month!==month) return;
+        month.completed=true; renderMonth();
+        notify('차트 재생을 마쳤습니다. 아래에서 최종 PNL과 거래별 결과를 확인하세요. 실현 손익과 미청산 평가를 구분했습니다.', 'success');
+      }
+    });
+    monthPlayer.load({frames,ticker:month.result.ticker,settings:month.result.settings,coverage:month.result.coverage});
+    let parentVisible=true;
+    try { if (window.parent!==window) parentVisible=/^#sim(?:$|\?)/.test(window.parent.location.hash); } catch (_) { /* Standalone visibility remains authoritative. */ }
+    if (state.mode==='month' && !document.hidden && parentVisible) monthPlayer.play();
+    $('run-month').textContent='새 설정으로 다시 재생';
+    $('month-replay').scrollIntoView({block:'start',behavior:'auto'});
+  }
   function runMonth() {
     if (!state.data) return;
-    stop();
-    safeRun(() => {
-      analyzeCases();
-      const options = { ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: state.scenarios.completions, settings: readSettings(), archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 };
-      const comparison = ['opposite_smart', 'opposite_complete'].map(exitMode => window.GoyaSimEngine.runStrategy({ ...options, settings: { ...options.settings, exitMode } }));
-      const result = comparison.find(item => item.settings.exitMode === options.settings.exitMode) || window.GoyaSimEngine.runStrategy(options);
-      state.month = { result, comparison, mapping: $('cross-mapping').value, unusable: state.scenarios.unusable, generatedAt: new Date().toISOString() };
-      renderMonth();
-      notify(state.ticker + ' 한 종목의 한 달 전략 시뮬레이션을 계산했습니다. 실제 계좌 수익이 아닌 모의 결과입니다.', 'success');
-    });
+    stop(); clearMonth();
+    const job=monthJob;
+    $('run-month').disabled=true; $('run-month').textContent='재생 준비 중…';
+    $('month-empty').textContent='보관된 캔들·지표·모의 체결을 시간순으로 준비하고 있습니다.';
+    notify('한 달 차트 재생을 준비합니다. 최종 결과는 재생을 마친 뒤 공개됩니다.');
+    requestAnimationFrame(() => setTimeout(() => {
+      if (job!==monthJob) return;
+      const ok=safeRun(() => {
+        analyzeCases();
+        const options = { ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: state.scenarios.completions, settings: readSettings(), archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 };
+        const collected=window.GoyaMonthTimeline.collect(options);
+        const result=collected.result;
+        const comparison=['opposite_smart','opposite_complete'].map(exitMode => exitMode===result.settings.exitMode ? result : window.GoyaSimEngine.runStrategy({...options,settings:{...options.settings,exitMode}}));
+        state.month={result,comparison,options,mapping:$('cross-mapping').value,unusable:state.scenarios.unusable,generatedAt:new Date().toISOString(),completed:false};
+        startMonthReplay(collected.frames);
+        notify(state.ticker+' 과거 차트 재생 중입니다. 지표와 매매 장면이 해당 시점에 나타납니다.');
+        return true;
+      });
+      $('run-month').disabled=false;
+      if (!ok) { clearMonth(); $('month-empty').textContent='재생 자료를 준비하지 못했습니다. 위 오류 안내를 확인한 뒤 다시 실행해 주세요.'; }
+    },0));
   }
   function renderMonth() {
+    if (!state.month || !state.month.completed) return;
     const {result:r,mapping,unusable} = state.month, s=r.summary, settings=r.settings;
     $('month-results').hidden=false; $('month-empty').hidden=true;
     $('month-rule').textContent=r.ticker + ' 한 종목 · ' + mappingLabel(mapping) + ' · 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · '+exitDescription(settings);
     renderExitComparison();
-    const items=[['최종 평가 자산',fmt(s.finalEquity)+' USDT','초기 '+fmt(s.initialBalance)+' USDT'],['누적 순손익',(s.netPnl>0?'+':'')+fmt(s.netPnl)+' USDT','계좌 수익률 '+fmt(s.returnPct)+'% · 미실현 포함'],['완료 거래',s.tradeCount+'회','진입 체결 '+s.filledCount+'회'],['실현 순손익',fmt(s.realizedPnl)+' USDT','청산을 마친 거래 · 수수료 반영'],['미실현 평가손익',fmt(s.unrealizedNetPnl)+' USDT','열린 포지션 · 진입 수수료 반영'],['총 수수료',fmt(s.fees)+' USDT','진입·청산 수수료 합계'],['최대 낙폭',fmt(s.maxDrawdownPct)+'%','마감 봉 평가 자산 기준'],['건너뛴 조건',s.skippedCount+'개','보유·대기·사용 불가 등']];
+    const items=[['최종 평가 자산',fmt(s.finalEquity)+' USDT','초기 '+fmt(s.initialBalance)+' USDT'],['최종 PNL · 평가 포함',(s.netPnl>0?'+':'')+fmt(s.netPnl)+' USDT','계좌 수익률 '+fmt(s.returnPct)+'% · 미실현 포함'],['완료 거래',s.tradeCount+'회','진입 체결 '+s.filledCount+'회'],['실현 순손익',fmt(s.realizedPnl)+' USDT','청산을 마친 거래 · 수수료 반영'],['미실현 평가손익',fmt(s.unrealizedNetPnl)+' USDT','열린 포지션 · 진입 수수료 반영'],['총 수수료',fmt(s.fees)+' USDT','진입·청산 수수료 합계'],['최대 낙폭',fmt(s.maxDrawdownPct)+'%','마감 봉 평가 자산 기준'],['건너뛴 조건',s.skippedCount+'개','보유·대기·사용 불가 등']];
     $('month-stats').innerHTML=items.map(([title,value,note],i)=>'<div><span>'+title+'</span><strong'+(i===1?' class="'+(s.netPnl>=0?'positive':'negative')+'"':'')+'>'+value+'</strong><small>'+note+'</small></div>').join('');
     // 기간 머리글은 첫 봉의 시작 시각부터 마지막 봉의 마감 시각까지다. 그래프 아래 날짜는 봉 마감 시각이라 기준을 함께 적는다.
     $('month-period').textContent=kst(r.coverage.from,true)+' 봉부터 '+kst(r.coverage.to,true)+' 마감까지 KST · 그래프 날짜는 봉이 끝난 시각';
@@ -319,23 +364,23 @@
       const s = item.summary, stats = item.snapshot.stats, selected = item.settings.exitMode === state.month.result.settings.exitMode;
       // 선택 버튼은 방식 이름 바로 아래에 둔다(좁은 화면에서 이름과 버튼이 함께 보이게). data-label 은 좁은 화면에서 칸 이름으로 보인다.
       // 완료 거래가 있는데 마지막 포지션만 열려 있으면 '청산 없음'이 아니라 '마지막 포지션 보유 중'이다.
-      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td data-label="청산 시점"><span class="comparison-name">' + escape(exitLabels[item.settings.exitMode]) + '</span>' + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : s.openPosition ? '<span class="comparison-badge">' + (s.tradeCount > 0 ? '마지막 포지션 보유 중' : '청산 없음 · 보유 지속') + '</span>' : tied ? '<span class="comparison-badge">동일 결과</span>' : '') + '<button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '아래 결과 표시 중' : '이 방식 결과 보기') + '</button></td><td data-label="순손익 · 평가 포함"><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td data-label="실현 / 미실현"><span>' + fmt(stats.realizedPnl) + '</span><small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td data-label="완료 거래"><span>' + s.tradeCount + '회</span><small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td></tr>';
+      return '<tr' + (selected ? ' class="selected-rule"' : '') + '><td data-label="청산 시점"><span class="comparison-name">' + escape(exitLabels[item.settings.exitMode]) + '</span>' + (best === item ? '<span class="comparison-badge">이 기간 우위</span>' : s.openPosition ? '<span class="comparison-badge">' + (s.tradeCount > 0 ? '마지막 포지션 보유 중' : '청산 없음 · 보유 지속') + '</span>' : tied ? '<span class="comparison-badge">동일 결과</span>' : '') + '<button class="button comparison-select" data-exit-mode="' + item.settings.exitMode + '"' + (selected ? ' disabled' : '') + '>' + (selected ? '재생한 방식' : '이 방식으로 재생') + '</button></td><td data-label="순손익 · 평가 포함"><strong class="' + (s.netPnl >= 0 ? 'positive' : 'negative') + '">' + fmt(s.netPnl) + ' USDT</strong><small>수익률 ' + fmt(s.returnPct) + '%</small></td><td data-label="실현 / 미실현"><span>' + fmt(stats.realizedPnl) + '</span><small>미실현 ' + fmt(stats.unrealizedNetPnl) + ' USDT</small></td><td data-label="완료 거래"><span>' + s.tradeCount + '회</span><small>미청산 ' + (s.openPosition ? '1건' : '없음') + '</small></td></tr>';
     }).join('');
   }
   function showComparisonMode(mode) {
-    if (!state.month) return;
+    if (!state.month || !state.month.completed) return;
     const result = state.month.comparison.find(item => item.settings.exitMode === mode);
     if (!result) return;
     // 결과 표시만 바꾼다. 위 연습 설정(#exit-mode)은 건드리지 않는다(자유 연습·새 계좌가 말없이 ②로 시작하지 않게).
-    state.month.result = result; renderMonth();
+    const collected=window.GoyaMonthTimeline.collect({...state.month.options,settings:result.settings});
+    state.month.result = collected.result;
+    startMonthReplay(collected.frames);
     const scroller = $('comparison-scroll'); if (scroller) scroller.scrollLeft = 0;
     // 누른 버튼이 다시 그려져 사라지므로 키보드 초점을 비교표 제목으로 옮긴다(화면은 움직이지 않는다).
-    const heading = $('comparison-heading'); if (heading && typeof heading.focus === 'function') { heading.setAttribute('tabindex', '-1'); try { heading.focus({ preventScroll: true }); } catch (_) {} }
-    notify('아래 한 달 결과를 ' + exitLabels[mode] + ' 방식으로 보여 드립니다. 위 연습 설정(포지션 정리 기준)은 바뀌지 않습니다.', '', 'comparison');
-    revealZone('comparison'); // 비교표 바로 아래 안내 줄이 화면 밖이면 살짝 올려 보인다
+    notify(exitLabels[mode]+' 방식으로 차트를 처음부터 재생합니다. 위 연습 설정은 바뀌지 않습니다.');
   }
   function drawEquity() {
-    if(!state.month||state.mode!=='month')return;
+    if(!state.month||!state.month.completed||state.mode!=='month')return;
     const canvas=$('equity-chart'),ctx=canvas.getContext('2d'),points=state.month.result.equityCurve;if(!ctx||!points.length)return;
     const width=Math.max(280,canvas.getBoundingClientRect().width),height=230,dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);
     const pad={l:14,r:80,t:18,b:35},ph=height-pad.t-pad.b;let lo=Math.min(...points.map(p=>p.equity)),hi=Math.max(...points.map(p=>p.equity));const extra=Math.max((hi-lo)*.2,1);lo-=extra;hi+=extra;
@@ -353,7 +398,7 @@
     ctx.fillStyle='#596970';ctx.fillText(firstDate,pad.l,height-13);ctx.textAlign='right';if(firstEnd<=lastX-textW(lastDate))ctx.fillText(lastDate,lastX,height-13);
   }
   function exportMonth() {
-    if(!state.month)return;
+    if(!state.month||!state.month.completed)return;
     const {result:r,mapping,unusable}=state.month, st=r.settings, mode=st.exitMode, lev=st.leverage;
     // 청산모드(설정 코드) 열은 그대로 두고 맨 끝 '청산방식' 열에 한글 이름을 적는다. 숫자 칸은 화면과 같은 자리로만 반올림한다.
     const trigger=x=>x?[x.label,csvTime(x.time),csvTime(x.availableAt)]:['','',''], tail=m=>[m,'','','',exitLabels[m]||m], notEntered='진입 안 함 · 진입시각 칸은 조건 확인 시각';
@@ -931,7 +976,17 @@
     window.addEventListener('resize',drawEquity);
     // 화면을 돌리거나 폭이 바뀌면 '오른쪽/아래·왼쪽/위쪽' 안내와 표 옆 밀기 안내를 다시 맞춘다.
     window.addEventListener('resize',() => { renderNotes(); if (state.snapshot && state.mode !== 'month') renderPending(state.snapshot); queueScrollCheck(); });
-    window.addEventListener('pagehide', stop); document.addEventListener('visibilitychange', () => { if(document.hidden)stop(); });
+    window.addEventListener('pagehide', () => { stop(); if (monthPlayer) monthPlayer.pause(); });
+    document.addEventListener('visibilitychange', () => { if(document.hidden) { stop(); if (monthPlayer) monthPlayer.pause(); } });
+    // This iframe is retained when the parent learning app changes tabs.
+    // A CSS-hidden iframe does not receive document.visibilitychange.
+    if (window.parent!==window) {
+      try { window.parent.addEventListener('hashchange', () => {
+        if (!/^#sim(?:$|\?)/.test(window.parent.location.hash) && monthPlayer) monthPlayer.pause();
+      }); } catch (_) { /* Standalone/cross-origin embedding has its own visibility lifecycle. */ }
+    }
+    // 링크 전용판: 이 화면(iframe) 주소의 열쇠 조각(#k=)을 연구실 링크에도 붙여 새 창(top)에서 바로 열리게 한다. 일반판은 그대로.
+    const labLink = $('entry-lab-link'); if (labLink && /[#&]k=[A-Za-z0-9_-]{16,}/.test(location.hash)) labLink.setAttribute('href', 'entry-lab.html' + location.hash);
     loadTicker(state.ticker, { restore: run, warning });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot); else boot();

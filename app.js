@@ -1011,7 +1011,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260926dev1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260928dev1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;

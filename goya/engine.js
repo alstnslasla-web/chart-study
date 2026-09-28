@@ -328,8 +328,11 @@
         }
       }
     }
-    consumeVisible();
-    while (!state.finished) { state = engine.advance(); consumeVisible(); }
+    // The observer sees only an isolated, already-public closed-hour snapshot.
+    // It cannot mutate strategy state, execution prices or the final result.
+    function observeFrame() { if (typeof options.onFrame === 'function') options.onFrame(clone(state)); }
+    consumeVisible(); observeFrame();
+    while (!state.finished) { state = engine.advance(); consumeVisible(); observeFrame(); }
     while (cursor < completions.length) {
       var item = completions[cursor++];
       skipped.push({ sourceIndex: item.sourceIndex, completion: item.event,

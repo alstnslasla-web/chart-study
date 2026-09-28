@@ -1,14 +1,16 @@
 /* 차트 배움터 링크 전용판 로더.
    내용·자료 파일은 암호화되어 있고, 열쇠는 공유 링크(?k=...)에만 들어 있다.
-   열쇠는 이 기기 브라우저에만 저장되며 서버로 따로 보내지 않는다. */
+   열쇠는 이 기기 브라우저에만 저장되며 서버로 따로 보내지 않는다.
+   data-mode: parent(배움터 본체) · frame(goya/index.html 모의연습) · lab(goya/entry-lab.html 진입 조합 연구실) */
 (function () {
   'use strict';
-  var BUILD = "29b6c6caf9";
-  var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","ui.js"]};
+  var BUILD = "96846ab876";
+  var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js"],"parentCode":["app.js","shared/motion.js","premium.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","ticker-search.js","ui.js","../shared/motion.js","premium.js"],"lab":["goya/data/catalog.js"],"labCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","entry-lab-engine.js","entry-lab-timeline.js","ticker-search.js","bb-execution.js","entry-lab-ui.js"]};
   var KEY_STORE = 'cb:link-key';
   var me = document.currentScript;
   var MODE = (me && me.getAttribute('data-mode')) || 'parent';
-  var PREFIX = MODE === 'frame' ? 'goya/' : '';
+  var IN_GOYA = MODE !== 'parent';   // goya/ 폴더 안의 화면은 배움터 루트가 한 단계 위다
+  var UP = IN_GOYA ? '../' : '';
   var enc = new TextEncoder();
 
   function b64url(s) {
@@ -40,7 +42,7 @@
     }[kind];
     el.className = 'cb-gate cb-' + kind;
     el.setAttribute('role', kind === 'loading' ? 'status' : 'alert');
-    el.innerHTML = '<div class="cb-card">' + msg + (MODE === 'parent' ? '<p class="cb-credit">만든이 김민수</p>' : '') + '</div>';
+    el.innerHTML = '<div class="cb-card">' + msg + (MODE !== 'frame' ? '<p class="cb-credit">만든이 김민수</p>' : '') + '</div>';
     el.hidden = false;
     var retry = document.getElementById('cb-retry');
     if (retry) retry.addEventListener('click', function () { location.reload(); });
@@ -70,7 +72,7 @@
       var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
       return new Response(stream).arrayBuffer().then(function (b) { return new Uint8Array(b); });
     }
-    if (!pakoPromise) pakoPromise = loadCode((MODE === 'frame' ? '../' : '') + 'vendor/pako_inflate.min.js?v=' + BUILD);
+    if (!pakoPromise) pakoPromise = loadCode(UP + 'vendor/pako_inflate.min.js?v=' + BUILD);
     return pakoPromise.then(function () { return window.pako.ungzip(bytes); });
   }
   function decrypt(secret, rel, bytes) {
@@ -105,12 +107,15 @@
   // 암호화된 자료 파일을 받아 풀고 순서대로 실행한다. rel은 링크판 루트 기준 경로(예: data/course.js).
   function loadEncrypted(secret, rels) {
     var jobs = rels.map(function (rel) {
-      var local = MODE === 'frame' ? rel.replace(/^goya\//, '') : rel;
+      var local = IN_GOYA ? rel.replace(/^goya\//, '') : rel;
       return fetchBytes(local + '.bin').then(function (b) { return decrypt(secret, rel, b); });
     });
     return jobs.reduce(function (chain, job, i) {
       return chain.then(function () { return job; }).then(function (text) { return runText(text, rels[i]); });
     }, Promise.resolve());
+  }
+  function loadCodes(list) {
+    return list.reduce(function (c, src) { return c.then(function () { return loadCode(src + '?v=' + BUILD); }); }, Promise.resolve());
   }
   function fail(err) {
     if (err && err.bad) { forgetKey(); gate('badkey'); }
@@ -130,7 +135,7 @@
     window.cbFrameHash = '#k=' + secret;
     fetchBytes('check.bin').then(function (b) { return decrypt(secret, 'check', b); })
       .then(function () { return loadEncrypted(secret, PLAN.parent); })
-      .then(function () { return loadCode('app.js?v=' + BUILD); })
+      .then(function () { return loadCodes(PLAN.parentCode); })
       .then(function () {
         ungate();
         if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
@@ -142,13 +147,19 @@
       })
       .catch(fail);
   } else {
-    window.cbLoadScript = function (src) {
-      return fetchBytes(src + '.bin').then(function (b) { return decrypt(secret, 'goya/' + src, b); })
-        .then(function (text) { return runText(text, 'goya/' + src); });
-    };
+    // goya/ 화면(모의연습·연구실)이 종목 자료·JSON 을 필요할 때 받아 푼다. src 는 goya/ 기준 경로(예: data/ETHUSDT.js, lower-data/manifest.json).
+    var bytesFor = function (src) { return fetchBytes(src + '.bin').then(function (b) { return decrypt(secret, 'goya/' + src, b); }); };
+    window.cbLoadScript = function (src) { return bytesFor(src).then(function (text) { return runText(text, 'goya/' + src); }); };
+    window.cbLoadJSON = function (src) { return bytesFor(src); }; // 원본 파일 바이트(Uint8Array) 그대로 — 연구실이 SHA-256 을 대조한다
+    if (MODE === 'lab') {
+      // 연구실에서 모의연습으로 돌아가는 링크에도 열쇠를 남긴다(저장소가 막힌 브라우저·홈 화면 앱 대비). 이 로더는 <head>에서 돌므로 본문이 생긴 뒤 붙인다.
+      var fixBack = function () { var back = document.getElementById('lab-back'); if (back) back.setAttribute('href', '../index.html?k=' + encodeURIComponent(secret) + '#sim'); };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fixBack, { once: true }); else fixBack();
+    }
+    var data = MODE === 'lab' ? PLAN.lab : PLAN.frame, code = MODE === 'lab' ? PLAN.labCode : PLAN.frameCode;
     fetchBytes('../check.bin').then(function (b) { return decrypt(secret, 'check', b); })
-      .then(function () { return loadEncrypted(secret, PLAN.frame); })
-      .then(function () { return PLAN.frameCode.reduce(function (c, src) { return c.then(function () { return loadCode(src + '?v=' + BUILD); }); }, Promise.resolve()); })
+      .then(function () { return loadEncrypted(secret, data); })
+      .then(function () { return loadCodes(code); })
       .catch(fail);
   }
 })();
