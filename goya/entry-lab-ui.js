@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id),Lab=window.GoyaEntryLab;
   let payload=null,lower=null,manifest=null,player=null,job=0,loadJob=0,result=null,selectedInput=null,completed=false,lowerError='';
-  const SPLIT_HOURS=558; // 전 종목 연구와 같은 분리 시각: 기록 시작 + 558시간(앞 70%)
+  // 앞/뒤 구간 분리 시각 = 자료판 전체 구간의 앞 70%(시간 단위 내림). 9/23+9/26 합본(798시간)에서는 전 종목 연구와 같은 558시간이다.
   const kst=sec=>{const d=new Date(sec*1000+9*3600*1000),z=x=>String(x).padStart(2,'0');return z(d.getUTCMonth()+1)+'/'+z(d.getUTCDate())+' '+z(d.getUTCHours())+':'+z(d.getUTCMinutes());};
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num=n=>Number.isFinite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
@@ -18,9 +18,12 @@
     if(!manifest){try{manifest=parse(await bytesOf('lower-data/manifest.json'));}catch(_){throw Error('하위봉 검증표 없음');}}
     const proof=manifest.symbolsResult?.[ticker];if(manifest.status!=='complete'||!proof?.simulationEligible)throw Error('하위봉 시장 대조 미통과');
     const rows=await Promise.all(['5m','15m'].map(async tf=>{let bytes;try{bytes=await bytesOf('lower-data/'+ticker+'-'+tf+'.json');}catch(_){throw Error('하위봉 파일 없음');}const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');if(hash!==proof[tf+'File'].sha256)throw Error('하위봉 파일 해시 불일치');return parse(bytes);}));
-    const byTime=new Map(rows[0].bars.map(b=>[b.time,b]));
-    for(const h of source.bars){const parts=Array.from({length:12},(_,i)=>byTime.get(h.time+i*300));if(parts.some(b=>!b)||parts[0].o!==h.o||parts[11].c!==h.c||Math.max(...parts.map(b=>b.h))!==h.h||Math.min(...parts.map(b=>b.l))!==h.l)throw Error('현재 시간봉과 하위봉 가격 불일치');}
-    return {bars5m:rows[0].bars,bars15m:rows[1].bars};
+    // 5분봉 자료는 수집 구간(researchStart~researchEndExclusive)만 있다. 그 구간 안의 시간봉만 대조하고, 분할 실행도 그 구간으로 제한한다(자료판이 뒤로 늘어나도 검증이 깨지지 않게).
+    const coverage={from:Number(rows[0].researchStart),to:Number(rows[0].researchEndExclusive)};if(!Number.isFinite(coverage.from)||!Number.isFinite(coverage.to)||coverage.to<=coverage.from)throw Error('하위봉 자료 구간 정보 없음');
+    const byTime=new Map(rows[0].bars.map(b=>[b.time,b]));let checked=0;
+    for(const h of source.bars){if(h.time<coverage.from||h.time+3600>coverage.to)continue;const parts=Array.from({length:12},(_,i)=>byTime.get(h.time+i*300));if(parts.some(b=>!b)||parts[0].o!==h.o||parts[11].c!==h.c||Math.max(...parts.map(b=>b.h))!==h.h||Math.min(...parts.map(b=>b.l))!==h.l)throw Error('현재 시간봉과 하위봉 가격 불일치');checked++;}
+    if(checked<24)throw Error('하위봉과 겹치는 시간봉이 너무 적음');
+    return {bars5m:rows[0].bars,bars15m:rows[1].bars,coverage,checked};
   }
   function settingsLabel(settings,execution){return '총 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · 손절 '+settings.stopLossPct+'% ('+(execution==='bb15'?'바깥 밴드':'진입가')+' 기준) · 추가 익절 '+(settings.takeProfitPct?settings.takeProfitPct+'% (평균 진입가 기준)':'끄기 · 반대 신호 청산');}
   function description(){const s=Lab.strategies.find(s=>s.id===$('strategy').value);$('strategy-detail').textContent=s?s.description:'';const bb=$('execution').value==='bb15',tp=Number($('lab-take-profit').value);$('lab-setting-summary').textContent=settingsLabel(formSettings(),$('execution').value)+' · 손절·익절은 가격 변동률입니다.';$('execution-rule').innerHTML=(bb?[
@@ -33,7 +36,7 @@
     '다음 1시간봉 시가에 선택한 총 증거금과 레버리지로 한 번에 진입합니다.',
     '손절은 진입가 대비 설정 비율입니다. 롱은 숏 신호, 숏은 롱 신호 확인 뒤 다음 시가에 청산합니다. 손실 중에도 정리하며, 같은 신호로 즉시 방향을 뒤집지 않습니다.'
   ]).concat([tp?'추가 익절 '+tp+'%: 평균 진입가에서 롱은 '+tp+'% 상승, 숏은 '+tp+'% 하락하면 청산합니다. 손절·익절·반대 신호 중 먼저 온 조건을 따릅니다.':'추가 가격 익절은 꺼져 있습니다. 선택한 반대 신호 또는 손절 조건으로 청산합니다.','격리 강제청산을 단순화해 계산합니다. 레버리지가 높으면 손절 가격에 닿기 전에 강제청산될 수 있습니다.']).map(x=>'<li>'+escape(x)+'</li>').join('');}
-  function lowerAvailability(){const ready=!!lower&&!!window.GoyaBBExecution;const opt=$('execution').querySelector('[value="bb15"]');opt.disabled=!ready;opt.textContent=ready?'15분 볼린저 3분할 · 실제 5분봉 체결':lowerError?'15분 볼린저 분할 · 검증 실패 · 1시간봉만':'15분 볼린저 분할 · 이 종목 하위봉 없음';if(!ready)$('execution').value='hourly';$('lower-status').textContent=ready?'실제 바이낸스 USD-M 5분봉 · 기존 1시간 OHLC 대조 통과':lowerError||'현재 검증된 하위봉은 BTC·ZEC·ETH·SOL입니다. 다른 종목은 1시간봉 조합을 비교할 수 있습니다.';description();}
+  function lowerAvailability(){const ready=!!lower&&!!window.GoyaBBExecution;const opt=$('execution').querySelector('[value="bb15"]');opt.disabled=!ready;opt.textContent=ready?'15분 볼린저 3분할 · 실제 5분봉 체결':lowerError?'15분 볼린저 분할 · 검증 실패 · 1시간봉만':'15분 볼린저 분할 · 이 종목 하위봉 없음';if(!ready)$('execution').value='hourly';$('lower-status').textContent=ready?'실제 5분봉 '+kst(lower.coverage.from)+' ~ '+kst(lower.coverage.to)+' KST 구간 · 1시간 OHLC '+lower.checked+'개 대조 통과. 분할 재생은 이 구간 안에서만 합니다.':lowerError||'현재 검증된 하위봉은 BTC·ZEC·ETH·SOL입니다. 다른 종목은 1시간봉 조합을 비교할 수 있습니다.';description();}
   // 종목 자료 읽기는 별도 세대 번호(loadJob)로 관리한다. 읽는 동안 규칙을 바꿔도(clear→job++) 읽기는 끝까지 가서 버튼을 살린다.
   async function load(){clear();const version=++loadJob,ticker=$('ticker').value;payload=null;lower=null;lowerError='';$('lab-run').disabled=true;status(ticker+' 저장 자료를 불러옵니다.');try{
     if(!window.GOYA_SIM_DATA?.[ticker])await script('data/'+encodeURIComponent(ticker)+'.js');if(version!==loadJob)return;payload=window.GOYA_SIM_DATA[ticker];
@@ -45,13 +48,15 @@
   }catch(e){if(version===loadJob){payload=null;lower=null;lowerAvailability();status(e.message);}}}
   function formSettings(){return {initialBalance:10000,allocationPct:Number($('lab-allocation').value),leverage:Number($('lab-leverage').value),feeBps:4,slippageBps:2,stopLossPct:Number($('lab-stop').value),takeProfitPct:Number($('lab-take-profit').value)};}
   // 앞/뒤 구간은 전 종목 연구와 같은 시각(기록 시작 + 558시간)에서 나눈다. 그 시각을 기록이 덮지 못하는 종목만 봉 수 70%로 나눈다.
-  function splitTime(){const n=payload.bars.length,first=payload.bars[0].time,last=payload.bars[n-1].time+3600;let common=NaN;try{common=Date.parse(window.GOYA_SIM_CATALOG.windowStartUTC)/1000+SPLIT_HOURS*3600;}catch(_){}return Number.isFinite(common)&&common>first&&common<last?{time:common,common:true}:{time:payload.bars[Math.floor(n*.7)].time,common:false};}
-  function inputs(){const n=payload.bars.length,period=$('lab-period').value,split=splitTime();const from=period==='holdout'?split.time:payload.bars[0].time,to=period==='train'?split.time:payload.bars[n-1].time+3600;return {payload,strategyId:$('strategy').value,exitMode:$('lab-exit').value,from,to,period,splitCommon:split.common,settings:formSettings(),execution:$('execution').value};}
+  function splitTime(){const n=payload.bars.length,first=payload.bars[0].time,last=payload.bars[n-1].time+3600;let common=NaN;try{const c=window.GOYA_SIM_CATALOG,s0=Date.parse(c.windowStartUTC)/1000,e0=Date.parse(c.anchorUTC)/1000;common=s0+Math.floor((e0-s0)/3600*.7)*3600;}catch(_){}return Number.isFinite(common)&&common>first&&common<last?{time:common,common:true}:{time:payload.bars[Math.floor(n*.7)].time,common:false};}
+  function inputs(){const n=payload.bars.length,period=$('lab-period').value,split=splitTime(),execution=$('execution').value;let from=period==='holdout'?split.time:payload.bars[0].time,to=period==='train'?split.time:payload.bars[n-1].time+3600;
+    if(execution==='bb15'&&lower&&lower.coverage){from=Math.max(from,lower.coverage.from);to=Math.min(to,lower.coverage.to);if(to-from<24*3600)throw Error('선택한 기간이 5분봉 자료 구간('+kst(lower.coverage.from)+' ~ '+kst(lower.coverage.to)+' KST)과 거의 겹치지 않습니다. 기간을 바꾸거나 1시간봉 체결을 고르세요.');}
+    return {payload,strategyId:$('strategy').value,exitMode:$('lab-exit').value,from,to,period,splitCommon:split.common,settings:formSettings(),execution};}
   function calculate(input,frames){if(input.execution==='bb15'){
     if(!lower||!window.GoyaBBExecution)throw Error('검증된 실제 하위봉이 필요합니다.');const q=Lab.prepare(input);
     return window.GoyaBBExecution.run({...input,...lower,entryEvents:q.entryEvents||q.completions,exitEvents:q.exitEvents,collectFrames:frames});
   }return frames?window.GoyaEntryLabTimeline.collect(input):Lab.runFast(input);}
-  function run(){if(!payload)return;const input=inputs();clear();const version=job;selectedInput=input;$('lab-run').disabled=true;status('체결을 준비합니다. 미래 가격과 최종 수익은 재생 중 숨깁니다.');requestAnimationFrame(()=>setTimeout(()=>{if(version!==job)return;try{
+  function run(){if(!payload)return;let input;try{input=inputs();}catch(e){status(e.message);return;}clear();const version=job;selectedInput=input;$('lab-run').disabled=true;status('체결을 준비합니다. 미래 가격과 최종 수익은 재생 중 숨깁니다.');requestAnimationFrame(()=>setTimeout(()=>{if(version!==job)return;try{
     const output=calculate(input,true);result=output.result||output;const frames=output.frames;
     $('lab-replay').hidden=false;player=window.GoyaMonthReplay.create({host:$('lab-replay'),onRestart:()=>{completed=false;$('month-results').hidden=true;},onComplete:()=>{if(version!==job)return;completed=true;render();}});
     player.load({frames,ticker:payload.ticker,settings:result.settings,coverage:result.coverage,candleSeconds:input.execution==='bb15'?300:3600});if(input.execution==='bb15'){const speed=$('lab-replay').querySelector('[data-mr="speed"]');speed.value='96';speed.dispatchEvent(new Event('change'));}player.play();status('선택한 조합의 진입·청산을 재생합니다.');$('lab-replay').scrollIntoView({block:'start',behavior:'auto'});

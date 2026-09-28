@@ -276,7 +276,7 @@
       <a class="card lift module-card" href="#sim">
         <div class="mod-head"><div class="mod-ico" aria-hidden="true">📈</div><div><div class="mod-title">지표 모의연습</div><div class="mod-sub">우리 지표 실제 기록 · 같은 방향 신호 두 가지 이상을 보며 롱·숏·관망 연습</div></div></div>
         ${ring(goyaProgress().pct, '연습 진행')}
-        <div class="mod-foot"><span class="badge">${goyaProgress().label}</span><span>실제 기록 353종목 · 8/24~9/26 · 한 시간씩 진행</span></div>
+        <div class="mod-foot"><span class="badge">${goyaProgress().label}</span><span>${window.GOYA_SUMMARY ? '실제 기록 ' + window.GOYA_SUMMARY.symbolCount + '종목 · ' + window.GOYA_SUMMARY.fromKST + '~' + window.GOYA_SUMMARY.toKST + ' · 한 시간씩 진행' : '실제 기록 · 한 시간씩 진행'}</span></div>
       </a>
       <div class="notice"><strong>이 앱은 연습용입니다</strong>투자 조언이 아니며 수익을 약속하거나 특정 종목·거래를 권하지 않습니다. 선물은 투자금 전액 손실과 강제청산 위험이 있습니다. 학습 기록은 ${ENV.apk ? '이 기기' : '이 기기·브라우저'}에만 저장되며 다른 사람과 공유되지 않습니다.</div>
       <a class="big-btn accent" href="#quiz/play?mode=daily"><span aria-hidden="true">🎯</span> 오늘의 도전 10문제 시작</a>
@@ -1011,7 +1011,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260928dev1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260928dev2' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
