@@ -20,7 +20,9 @@
     animation.oncancel = finish;
   }
   function stop() { for (const animation of [...running]) animation.cancel(); }
-  preference.addEventListener('change', event => { if (event.matches) stop(); });
+  const onPreference = event => { if (event.matches) stop(); };
+  if (typeof preference.addEventListener === 'function') preference.addEventListener('change', onPreference);
+  else if (typeof preference.addListener === 'function') preference.addListener(onPreference);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') stop(); });
   window.EXMotion = Object.freeze({ enter, stop, reduced: () => preference.matches });
 })();

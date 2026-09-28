@@ -26,10 +26,11 @@ function signals(payload,id){
  for(const [time,batch]of [...batches].sort((a,b)=>a[0]-b[0])){
   // Time can expire a condition between event batches; rearm before overwriting the old timestamps.
   if(id==='premium_rl'&&armed&&(!state.premium||!state.rl||time-state.premium.time>DAY||time-state.rl.time>DAY))armed=null;
+  const prev={smart:state.smart,premium:state.premium,rl:state.rl}; // 이 봉을 반영하기 전 상태(순서 규칙의 선행 신호 기준)
   const changed={};for(const family of ['smart','premium','rl']){const hits=batch.map(s=>({s,c:classify(s)})).filter(x=>x.c&&x.c.family===family);if(!hits.length)continue;const dirs=[...new Set(hits.map(x=>x.c.direction))];state[family]={time,direction:dirs.length===1?dirs[0]:'ambiguous',evidence:hits.map(x=>x.s)};changed[family]=state[family];}
   if(id==='smart'||id==='premium2'){const v=changed[id==='smart'?'smart':'premium'];if(v&&v.direction!=='ambiguous')add(time,v.direction,[v]);continue;}
   if(id==='premium_then_smart'||id==='smart_then_premium'){
-   const first=id==='premium_then_smart'?'premium':'smart',second=first==='premium'?'smart':'premium',a=state[first],b=changed[second];
+   const first=id==='premium_then_smart'?'premium':'smart',second=first==='premium'?'smart':'premium',a=prev[first],b=changed[second];
    if(a&&b&&b.direction!=='ambiguous'&&a.direction===b.direction&&a.time<b.time&&b.time-a.time<=DAY)add(time,b.direction,[a,b]);continue;
   }
   const a=state.premium,b=state.rl,dir=a&&b&&a.direction===b.direction&&a.direction!=='ambiguous'&&time-a.time<=DAY&&time-b.time<=DAY?a.direction:null;
@@ -49,8 +50,17 @@ function prepare(options){
  const settings=Engine.validateSettings({...defaults,...options.settings,exitMode:'opposite_smart'});
  return {ticker:p.ticker||'UNKNOWN',bars:copy(bars),signals:exits.map((s,i)=>({time:s.availableAt-H,source:'ut_signal2',group:'none',signal:s.direction==='long'?'L':'S',source_index:i,original:s.source||s})),completions:copy(completions),entryEvents:copy(completions),exitEvents:copy(exits),archiveEnd:Math.min(to,bars.at(-1).time+H),settings,sourceSignals:copy(p.signals.filter(s=>s.time+H<=to)),research:{strategyId:id,exitMode:exit,from:bars[0].time,to,sourceSignalFirstSeenKnown:false}};
 }
+// 연구실 청산은 원래 신호(Premium L2/S2 또는 2종 조건)를 엔진이 받아들이도록 ut_signal2 L/S 로 바꿔 넣는다.
+// 결과·프레임에 남는 청산 표기(trigger·note·signals)는 아래에서 원래 신호로 되돌려, 학습자가 Smart LL/SS 로 오해하지 않게 한다.
+function describeExit(x){if(x&&x.source){const s=x.source,smart=s.source==='ut_signal2';return {type:'research_exit',family:smart?'smart':'premium',label:smart?(s.signal==='L'?'LL':'SS'):s.signal,source:s.source,signal:s.signal,group:s.group,time:s.time,source_index:s.source_index};}return {type:'research_exit',family:'two',label:'2종 조건 성립',source:'research_two',time:x?x.completeAt:null,evidence:x?copy(x.evidence||[]):[]};}
+function exitInfo(trigger,exits){if(!trigger||trigger.type!=='smart'||!Array.isArray(exits)||!Number.isInteger(trigger.source_index))return null;const x=exits[trigger.source_index];if(!x)return null;return {...trigger,...describeExit(x),availableAt:x.availableAt};}
+function fixNote(note,label){return typeof note==='string'&&/^반대 (LL|SS) 확인 후/.test(note)?'반대 '+label+' 확인 후 다음 시가에 포지션 정리':note;}
+function relabelTrade(t,exits){const info=exitInfo(t&&t.exitTrigger,exits);if(info){t.exitTrigger=info;t.exitNote=fixNote(t.exitNote,info.label);}return t;}
+function relabelPending(p,exits){const info=exitInfo(p&&p.trigger,exits);if(info){p.trigger=info;p.note=fixNote(p.note,info.label);}return p;}
+function relabelFrame(frame,exits){if(!frame)return frame;(frame.trades||[]).forEach(t=>relabelTrade(t,exits));(frame.events||[]).forEach(e=>{if(e&&e.type==='order'&&e.trigger){const info=exitInfo(e.trigger,exits);if(info)e.trigger=info;}});if(frame.pending)relabelPending(frame.pending,exits);return frame;}
+function relabel(result,exits,sourceSignals){if(!result)return result;(result.trades||[]).forEach(t=>relabelTrade(t,exits));const s=result.snapshot;if(s){(s.trades||[]).forEach(t=>relabelTrade(t,exits));(s.decisions||[]).forEach(d=>{const info=exitInfo(d.trigger,exits);if(info){d.trigger=info;d.note=fixNote(d.note,info.label);}});if(s.pending)relabelPending(s.pending,exits);if(Array.isArray(sourceSignals))s.signals=sourceSignals.filter(x=>x.group==='none'&&x.time+H<=s.cutoff).map(copy);}return result;}
 // The public run uses the existing app engine. Batch research uses the parity-tested compact loop below.
-function run(options){return Engine.runStrategy(prepare(options));}
+function run(options){const q=prepare(options);return relabel(Engine.runStrategy(q),q.exitEvents,q.sourceSignals);}
 function runFast(options){
  const q=prepare(options),{bars,settings:cfg}=q,entries=q.completions,exits=q.signals;let cash=cfg.initialBalance,pos=null,pending=null,ec=0,xc=0,entered=0,reason='archive_end',last=0;const trades=[],equityCurve=[];
  const pnl=(p,price)=>(price-p.entryPrice)*p.qty*(p.side==='long'?1:-1);
@@ -73,6 +83,6 @@ function runFast(options){
  const b=bars[last],value=equity(b.c),realized=trades.reduce((s,t)=>s+t.netPnl,0),unrealized=pos?pnl(pos,b.c):0,fees=trades.reduce((s,t)=>s+t.fees,0)+(pos?pos.entryFee:0);let peak=cfg.initialBalance,mdd=0;for(const x of equityCurve){peak=Math.max(peak,x.equity);mdd=Math.max(mdd,(peak-x.equity)/peak*100);}const wins=trades.filter(x=>x.netPnl>0).length;
  return {ticker:q.ticker,settings:cfg,research:q.research,summary:{initialBalance:cfg.initialBalance,finalEquity:value,cash,netPnl:value-cfg.initialBalance,realizedPnl:realized,unrealizedPnl:unrealized,unrealizedNetPnl:pos?unrealized-pos.entryFee:0,fees,tradeCount:trades.length,filledCount:entered,wins,losses:trades.filter(x=>x.netPnl<0).length,winRatePct:trades.length?wins/trades.length*100:null,returnPct:(value/cfg.initialBalance-1)*100,maxDrawdownPct:mdd,openPosition:pos?{...pos,markPrice:b.c,unrealizedPnl:unrealized}:null,forcedEndClose:false},trades,equityCurve,coverage:{from:bars[0].time,to:b.time+H,barsProcessed:last+1,finishedReason:reason,completeToArchive:reason==='archive_end'},assumptions:{signalDelaySeconds:H,fill:'next_open',intrabarOrder:'stop_first',fundingModeled:false,firstSeenKnown:false,archivedSignalsMayRepaint:true,automaticReverse:false,forcedEndClose:false,maintenanceMarginRate:.005,mdd:'hour_close_marks'}};
 }
-return Object.freeze({strategies,exitModes,defaults,signals,events:signals,prepare,inputs:prepare,run,runFast});
+return Object.freeze({strategies,exitModes,defaults,signals,events:signals,prepare,inputs:prepare,run,runFast,describeExit,relabel,relabelFrame});
 });
 

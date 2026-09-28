@@ -3,9 +3,11 @@
   function collect(input){
     const options=Lab.prepare(input), collected=Timeline.collect(options);
     // Exit-only adapter signals must never be presented as original provider signals.
-    const signals=input.payload.signals.filter(s=>s.group==='none').slice().sort((a,b)=>a.time-b.time);
+    if(typeof Lab.relabel==='function')Lab.relabel(collected.result,options.exitEvents,options.sourceSignals);
+    const signals=(options.sourceSignals||input.payload.signals).filter(s=>s.group==='none').map(s=>JSON.parse(JSON.stringify(s))).sort((a,b)=>a.time-b.time);
     let previous=collected.frames.length?collected.frames[0].current.time:0;
     for(const frame of collected.frames){
+      if(typeof Lab.relabelFrame==='function')Lab.relabelFrame(frame,options.exitEvents);
       frame.signals=signals.filter(s=>s.time>=frame.bars[0].time&&s.time+3600<=frame.cutoff);
       frame.events=frame.events.filter(e=>e.type!=='signal');
       for(const signal of signals.filter(s=>s.time+3600>previous&&s.time+3600<=frame.cutoff))frame.events.push({type:'signal',id:'source:'+signal.source+':'+signal.time+':'+signal.signal,time:signal.time+3600,barTime:signal.time,signal,label:signal.signal});

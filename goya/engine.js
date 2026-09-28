@@ -330,7 +330,8 @@
     }
     // The observer sees only an isolated, already-public closed-hour snapshot.
     // It cannot mutate strategy state, execution prices or the final result.
-    function observeFrame() { if (typeof options.onFrame === 'function') options.onFrame(clone(state)); }
+    // 관찰용 사본은 최근 120봉만 담고 자산 곡선은 뺀다(전 구간 복사는 봉 수의 제곱으로 느려진다). 결과·엔진 상태와는 독립된 사본이다.
+    function observeFrame() { if (typeof options.onFrame === 'function') options.onFrame(clone(Object.assign({}, state, { bars: state.bars.slice(-120), equityCurve: [], warnings: [] }))); }
     consumeVisible(); observeFrame();
     while (!state.finished) { state = engine.advance(); consumeVisible(); observeFrame(); }
     while (cursor < completions.length) {

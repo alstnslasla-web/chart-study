@@ -106,7 +106,7 @@
       el.restart.disabled = !frames.length;
       el.play.setAttribute('aria-pressed', playing ? 'true' : 'false');
       text('play', playing ? 'Ⅱ 일시정지' : completed ? '재생 완료' : '▶ 재생');
-      text('step', eventQueue.length ? '다음 체결 장면 →' : frames.length && frameIndex >= frames.length - 1 ? '결과 보기 ↓' : '한 봉씩 →');
+      text('step', eventQueue.length ? (isTrade(eventQueue[0]) ? '다음 체결 장면 →' : '다음 장면 →') : frames.length && frameIndex >= frames.length - 1 ? '결과 보기 ↓' : '한 봉씩 →');
       text('state', completed ? '재생 완료' : playing ? '재생 중' : frameIndex > 0 ? '일시정지' : '재생 준비');
       root.dataset.playing = String(playing); root.dataset.complete = String(completed);
       el['result-link'].hidden = !completed;
@@ -129,7 +129,9 @@
       }).slice();
       // Signals from the same hourly close appear together; every fill gets its own readable moment.
       var trades = eventQueue.filter(isTrade), nonTrades = eventQueue.filter(function (e) { return !isTrade(e); });
-      eventQueue = trades.length ? eventQueue : nonTrades.slice(-1);
+      // 체결이 없는 봉: 마지막 신호 카드와 주문 예약 카드는 둘 다 보여 준다(신호가 주문에 가려지지 않게).
+      var lastSignal = nonTrades.filter(function (e) { return e.type === 'signal'; }).slice(-1), lastOrder = nonTrades.filter(function (e) { return e.type === 'order'; }).slice(-1);
+      eventQueue = trades.length ? eventQueue : lastSignal.concat(lastOrder);
       eventUntil = 0; showQueuedEvent(true); renderState(); queueDraw();
     }
     function finish() {
@@ -156,8 +158,10 @@
     }
     function pause(reason) {
       if (destroyed) return;
+      var wasPlaying = playing;
       playing = false; cancelTimer(); renderState();
-      if (reason === 'hidden') text('note', '화면을 벗어나 재생을 멈췄습니다. 돌아오면 재생 버튼으로 이어 보세요.');
+      // 재생 중이었을 때만 안내를 바꾼다(완료·대기 상태의 안내는 그대로).
+      if (reason === 'hidden' && wasPlaying && !completed) text('note', '화면을 벗어나 재생을 멈췄습니다. 돌아오면 재생 버튼으로 이어 보세요.');
     }
     function step() {
       if (destroyed || completed || !frames.length) return;
@@ -186,7 +190,15 @@
       text('period', frames.length ? stamp(frames[0].cutoff, true) + ' → ' + stamp(frames[frames.length - 1].cutoff, true) : '기록 없음');
       text('event-type', '관찰'); text('event-title', '한 달을 시간 순서대로 따라갑니다.'); text('event-detail', '최종 결과는 마지막 봉까지 재생한 뒤 표시됩니다.'); el.event.className = 'mr-event';
       text('note', timeframeLabel + ' 마감 단위 재생 · 실제 틱 영상 아님. 체결 순간에는 잠깐 멈춰 보여 줍니다.'); renderLog();
-      if (frames.length) renderFrame(frames[0]); else { current = null; el.empty.hidden = false; text('empty', '재생할 ' + timeframeLabel + ' 기록이 없습니다.'); renderState(); queueDraw(); }
+      if (frames.length) renderFrame(frames[0]); else {
+        current = null; el.empty.hidden = false; text('empty', '재생할 ' + timeframeLabel + ' 기록이 없습니다.');
+        // 이전 재생의 숫자가 남지 않게 판을 비운다.
+        text('ticker', '—'); text('title', '차트 다시보기'); text('price', '—'); text('time', '—'); text('equity', '—');
+        ['net', 'realized', 'unrealized'].forEach(function (key) { text(key, '—'); el[key].className = ''; }); text('fees', '—');
+        text('position', '보유 포지션 없음'); text('pending', ''); el.pending.hidden = true; el.progress.value = 0; text('progress-text', '준비 중'); text('trade-count', '0건');
+        el.canvas.setAttribute('aria-label', '아직 재생을 시작하지 않은 차트');
+        renderState(); queueDraw();
+      }
     }
     function queueDraw() {
       if (destroyed || raf) return;
@@ -207,6 +219,7 @@
       if (current.position && Number.isFinite(current.position.entryPrice)) { lows.push(current.position.entryPrice); highs.push(current.position.entryPrice); }
       var fixedStop=current.position&&current.position.stopLoss||current.pending&&current.pending.stopLoss;
       if(candleSeconds!==HOUR&&Number.isFinite(fixedStop)){lows.push(fixedStop);highs.push(fixedStop);}
+      if(candleSeconds!==HOUR){(current.pending&&current.pending.remaining||[]).forEach(function(order){if(Number.isFinite(order.limit)){lows.push(order.limit);highs.push(order.limit);}});}
       var low = Math.min.apply(null, lows), high = Math.max.apply(null, highs), pad = Math.max((high - low) * .23, Math.abs(high) * .004, 0.00000001); low -= pad; high += pad;
       var first = bars[0].time, last = bars[bars.length - 1].time, timeSpan = Math.max(candleSeconds, last - first + candleSeconds);
       function x(t) { return left + (t - first + candleSeconds * .5) / timeSpan * plotWidth; }
@@ -246,15 +259,18 @@
       function label(value, xx, yy, color, fill) {
         ctx.font = 'bold 14px "Malgun Gothic", sans-serif';
         var labelWidth = ctx.measureText(value).width + 10, lx = Math.max(left + labelWidth / 2, Math.min(w - right - labelWidth / 2, xx));
+        yy = Math.max(top + 12, Math.min(bottom - 12, yy));
         for (var lane = 0; lane < 6; lane++) { if (!occupied.some(function (b) { return Math.abs(b.x - lx) < (b.width + labelWidth) / 2 + 2 && Math.abs(b.y - yy) < 22; })) break; yy += yy < (top + bottom) / 2 ? 22 : -22; }
         yy = Math.max(top + 12, Math.min(bottom - 12, yy)); occupied.push({ x: lx, y: yy, width: labelWidth });
         ctx.fillStyle = fill || '#212328'; ctx.fillRect(lx - labelWidth / 2, yy - 10, labelWidth, 20); ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.fillText(value, lx, yy);
       }
       (current.signals || []).forEach(function (event) {
-        if ((event.group && event.group !== 'none') || number(event.time) + HOUR > number(current.cutoff) || !barMap.has(event.time)) return;
+        // 1시간 신호는 그 시간봉이 끝나는 봉(5분봉이면 :55 봉)에 표시한다.
+        var anchor = candleSeconds === HOUR ? event.time : number(event.time) + HOUR - candleSeconds;
+        if ((event.group && event.group !== 'none') || number(event.time) + HOUR > number(current.cutoff) || !barMap.has(anchor)) return;
         var mark = signalMark(event); if (!mark) return;
         var key = event.time + ':' + mark.label; if (seen.has(key)) return; seen.add(key);
-        var bar = barMap.get(event.time), xx = x(bar.time), yy = mark.long ? y(bar.l) + 8 : y(bar.h) - 8, color = mark.cross ? '#efc76f' : mark.long ? '#a4d9b9' : '#f3b2a9';
+        var bar = barMap.get(anchor), xx = x(bar.time), yy = mark.long ? y(bar.l) + 8 : y(bar.h) - 8, color = mark.cross ? '#efc76f' : mark.long ? '#a4d9b9' : '#f3b2a9';
         ctx.fillStyle = color; ctx.beginPath();
         if (mark.cross) { ctx.moveTo(xx, yy - 5); ctx.lineTo(xx + 5, yy); ctx.lineTo(xx, yy + 5); ctx.lineTo(xx - 5, yy); }
         else { var dir = mark.long ? 1 : -1; ctx.moveTo(xx, yy - dir * 5); ctx.lineTo(xx - 5, yy + dir * 4); ctx.lineTo(xx + 5, yy + dir * 4); }

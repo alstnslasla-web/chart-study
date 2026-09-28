@@ -310,7 +310,8 @@
     try { if (window.parent!==window) parentVisible=/^#sim(?:$|\?)/.test(window.parent.location.hash); } catch (_) { /* Standalone visibility remains authoritative. */ }
     if (state.mode==='month' && !document.hidden && parentVisible) monthPlayer.play();
     $('run-month').textContent='새 설정으로 다시 재생';
-    $('month-replay').scrollIntoView({block:'start',behavior:'auto'});
+    // 부모 앱이 iframe 높이를 새 내용에 맞춘 뒤에 옮겨야 화면이 재생 화면에 머문다(높이 전달은 비동기).
+    setTimeout(() => { const el=$('month-replay'); if (el && !el.hidden && typeof el.scrollIntoView==='function') el.scrollIntoView({block:'start',behavior:'auto'}); }, 150);
   }
   function runMonth() {
     if (!state.data) return;
