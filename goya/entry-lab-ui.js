@@ -19,16 +19,17 @@
     for(const h of source.bars){const parts=Array.from({length:12},(_,i)=>byTime.get(h.time+i*300));if(parts.some(b=>!b)||parts[0].o!==h.o||parts[11].c!==h.c||Math.max(...parts.map(b=>b.h))!==h.h||Math.min(...parts.map(b=>b.l))!==h.l)throw Error('현재 시간봉과 하위봉 가격 불일치');}
     return {bars5m:rows[0].bars,bars15m:rows[1].bars};
   }
-  function description(){const s=Lab.strategies.find(s=>s.id===$('strategy').value);$('strategy-detail').textContent=s?s.description:'';const bb=$('execution').value==='bb15';$('execution-rule').innerHTML=(bb?[
+  function settingsLabel(settings,execution){return '총 증거금 '+settings.allocationPct+'% · '+settings.leverage+'배 · 손절 '+settings.stopLossPct+'% ('+(execution==='bb15'?'바깥 밴드':'진입가')+' 기준) · 추가 익절 '+(settings.takeProfitPct?settings.takeProfitPct+'% (평균 진입가 기준)':'끄기 · 반대 신호 청산');}
+  function description(){const s=Lab.strategies.find(s=>s.id===$('strategy').value);$('strategy-detail').textContent=s?s.description:'';const bb=$('execution').value==='bb15',tp=Number($('lab-take-profit').value);$('lab-setting-summary').textContent=settingsLabel(formSettings(),$('execution').value)+' · 손절·익절은 가격 변동률입니다.';$('execution-rule').innerHTML=(bb?[
     '1시간봉 진입 조건이 마감으로 확인되면, 그때까지 마감된 15분봉 BB(20, 2)를 고정합니다.',
     '롱은 중단 → 중단·하단 사이 → 하단, 숏은 중단 → 중단·상단 사이 → 상단에 총 증거금을 3등분해 지정가로 대기합니다.',
     '주문은 24시간 뒤 만료됩니다. 손절은 고정한 바깥 밴드보다 설정한 비율만큼 바깥에 둡니다. 같은 5분봉 안 순서가 모호한 추가 매수와 손절은 손실에 불리한 순서로 계산합니다.',
-    '반대 1시간봉 신호가 확인되면 미체결 주문을 취소하고 첫 5분봉 시가에 청산합니다. 같은 신호로 즉시 방향을 뒤집지 않습니다.'
+    '롱 보유 중 숏 신호, 숏 보유 중 롱 신호가 확인되면 미체결 주문을 취소하고 첫 5분봉 시가에 청산합니다. 손실 중에도 정리하며, 같은 신호로 즉시 방향을 뒤집지 않습니다.'
   ]:[
     '마감된 1시간봉에서 진입 조건을 확인합니다.',
-    '다음 1시간봉 시가에 선택한 총 증거금으로 한 번에 진입합니다.',
-    '손절은 진입가 대비 설정 비율입니다. 반대 신호는 확인 뒤 다음 시가에 청산합니다. 같은 신호로 즉시 방향을 뒤집지 않습니다.'
-  ]).map(x=>'<li>'+escape(x)+'</li>').join('');}
+    '다음 1시간봉 시가에 선택한 총 증거금과 레버리지로 한 번에 진입합니다.',
+    '손절은 진입가 대비 설정 비율입니다. 롱은 숏 신호, 숏은 롱 신호 확인 뒤 다음 시가에 청산합니다. 손실 중에도 정리하며, 같은 신호로 즉시 방향을 뒤집지 않습니다.'
+  ]).concat([tp?'추가 익절 '+tp+'%: 평균 진입가에서 롱은 '+tp+'% 상승, 숏은 '+tp+'% 하락하면 청산합니다. 손절·익절·반대 신호 중 먼저 온 조건을 따릅니다.':'추가 가격 익절은 꺼져 있습니다. 선택한 반대 신호 또는 손절 조건으로 청산합니다.','격리 강제청산을 단순화해 계산합니다. 레버리지가 높으면 손절 가격에 닿기 전에 강제청산될 수 있습니다.']).map(x=>'<li>'+escape(x)+'</li>').join('');}
   function lowerAvailability(){const ready=!!lower&&!!window.GoyaBBExecution;const opt=$('execution').querySelector('[value="bb15"]');opt.disabled=!ready;opt.textContent=ready?'15분 볼린저 3분할 · 실제 5분봉 체결':'15분 볼린저 분할 · 이 종목 하위봉 없음';if(!ready)$('execution').value='hourly';$('lower-status').textContent=ready?'실제 바이낸스 USD-M 5분봉 · 기존 1시간 OHLC 대조 통과':lowerError||'현재 검증된 하위봉은 BTC·ZEC·ETH·SOL입니다. 다른 종목은 1시간봉 조합을 비교할 수 있습니다.';description();}
   async function load(){clear();const version=job,ticker=$('ticker').value;payload=null;lower=null;lowerError='';$('lab-run').disabled=true;status(ticker+' 저장 자료를 불러옵니다.');try{
     if(!window.GOYA_SIM_DATA?.[ticker])await script('data/'+encodeURIComponent(ticker)+'.js');if(version!==job)return;payload=window.GOYA_SIM_DATA[ticker];
@@ -38,7 +39,8 @@
     }
     if(version!==job)return;lowerAvailability();$('lab-run').disabled=false;status(ticker+' · '+payload.bars.length+'시간의 기록이 준비됐습니다. 최종 PNL은 재생 뒤 보여 드립니다.');
   }catch(e){if(version===job)status(e.message);}}
-  function inputs(){const n=payload.bars.length,split=Math.floor(n*.7),period=$('lab-period').value;return {payload,strategyId:$('strategy').value,exitMode:$('lab-exit').value,from:period==='holdout'?payload.bars[split].time:payload.bars[0].time,to:period==='train'?payload.bars[split].time:payload.bars[n-1].time+3600,settings:{initialBalance:10000,allocationPct:Number($('lab-allocation').value),leverage:1,feeBps:4,slippageBps:2,stopLossPct:Number($('lab-stop').value),takeProfitPct:0},execution:$('execution').value};}
+  function formSettings(){return {initialBalance:10000,allocationPct:Number($('lab-allocation').value),leverage:Number($('lab-leverage').value),feeBps:4,slippageBps:2,stopLossPct:Number($('lab-stop').value),takeProfitPct:Number($('lab-take-profit').value)};}
+  function inputs(){const n=payload.bars.length,split=Math.floor(n*.7),period=$('lab-period').value;return {payload,strategyId:$('strategy').value,exitMode:$('lab-exit').value,from:period==='holdout'?payload.bars[split].time:payload.bars[0].time,to:period==='train'?payload.bars[split].time:payload.bars[n-1].time+3600,settings:formSettings(),execution:$('execution').value};}
   function calculate(input,frames){if(input.execution==='bb15'){
     if(!lower||!window.GoyaBBExecution)throw Error('검증된 실제 하위봉이 필요합니다.');const q=Lab.prepare(input);
     return window.GoyaBBExecution.run({...input,...lower,entryEvents:q.entryEvents||q.completions,exitEvents:q.exitEvents,collectFrames:frames});
@@ -49,18 +51,18 @@
     player.load({frames,ticker:payload.ticker,settings:result.settings,coverage:result.coverage,candleSeconds:input.execution==='bb15'?300:3600});if(input.execution==='bb15'){const speed=$('lab-replay').querySelector('[data-mr="speed"]');speed.value='96';speed.dispatchEvent(new Event('change'));}player.play();status('선택한 조합의 진입·청산을 재생합니다.');$('lab-replay').scrollIntoView({block:'start',behavior:'auto'});
   }catch(e){status(e.message);}finally{if(version===job)$('lab-run').disabled=false;}},0));}
   function render(){if(!result||!completed)return;const s=result.summary,input=selectedInput;const name=Lab.strategies.find(x=>x.id===input.strategyId).label;const exit=Lab.exitModes.find(x=>x.id===input.exitMode).label;
-    $('month-results').hidden=false;$('lab-result-rule').textContent=payload.ticker+' · '+name+' / '+exit+' · 총 증거금 '+input.settings.allocationPct+'% · 1배';
+    $('month-results').hidden=false;$('lab-result-rule').textContent=payload.ticker+' · '+name+' / '+exit+' · '+settingsLabel(input.settings,input.execution);
     const cells=[['순손익 · 평가 포함',s.netPnl,'USDT',num],['실현 순손익',s.realizedPnl,'USDT',num],['미실현 평가손익',s.unrealizedNetPnl,'USDT',num],['최대 낙폭',s.maxDrawdownPct,'% · 봉 마감 기준',num],['완료 거래',s.tradeCount,'회',count],['거래 수수료',s.fees,'USDT',num]];
     $('lab-stats').innerHTML=cells.map(([a,b,c,f],i)=>'<div><span>'+a+'</span><strong class="'+(i<3?(b>=0?'positive':'negative'):'')+'">'+f(b)+'</strong><small>'+c+'</small></div>').join('');
     $('lab-result-note').textContent=(s.openPosition?'마지막 포지션은 보유 중이며 마지막 종가로 평가했습니다. ':'마지막 포지션까지 청산됐습니다. ')+((result.coverage.completeToArchive===false||result.coverage.complete===false)?'자료 공백 또는 자금 상태로 중간에 멈췄습니다. ':'')+(input.execution==='bb15'?'15분 밴드 주문을 실제 5분봉에서 체결했습니다. 밴드 바깥 손절과 1시간 진입가 손절은 거리도 달라, 두 방식 차이를 진입 타이밍만의 효과라고 볼 수 없습니다. ':'')+'수익률 '+num(s.returnPct)+'%. 펀딩비·호가 유동성·체결 대기열은 반영하지 않습니다.';
     $('lab-compare').innerHTML=Lab.strategies.map(strategy=>{const r=calculate({...input,strategyId:strategy.id},false),z=r.summary;return '<tr class="'+(strategy.id===input.strategyId?'selected':'')+'"><td>'+escape(strategy.label)+'</td><td class="'+(z.netPnl>=0?'positive':'negative')+'">'+num(z.netPnl)+'</td><td>'+num(z.realizedPnl)+'<small>'+num(z.unrealizedNetPnl)+'</small></td><td>'+num(z.maxDrawdownPct)+'%<small>'+count(z.tradeCount)+'회</small></td><td><button data-strategy="'+strategy.id+'">재생</button></td></tr>';}).join('');status('재생 완료. 실현 손익과 미실현 평가를 나눠 확인하세요.');
   }
-  async function study(){try{const d=parse(await bytesOf('entry-study-summary.json'));$('study-status').textContent=d.scope;$('study-result').innerHTML='<div class="study-callout">'+escape(d.conclusion)+'</div>'+d.paragraphs.map(p=>'<p>'+escape(p)+'</p>').join('');}catch(_){$('study-status').textContent='전 종목 집계는 아직 준비되지 않았습니다. 위에서 개별 종목의 규칙을 비교할 수 있습니다.';}}
+  async function study(){try{const d=parse(await bytesOf('entry-study-summary.json'));$('study-status').textContent='저장된 1배 연구 결과 · 위에서 바꾼 설정은 이 집계에 적용되지 않습니다. '+d.scope;$('study-result').innerHTML='<div class="study-callout">'+escape(d.conclusion)+'</div>'+d.paragraphs.map(p=>'<p>'+escape(p)+'</p>').join('');}catch(_){$('study-status').textContent='전 종목 집계는 아직 준비되지 않았습니다. 위에서 개별 종목의 규칙을 비교할 수 있습니다.';}}
   if(!Lab){status('연구 엔진을 불러오지 못했습니다. 새로고침해 주세요.');return;}
   $('ticker').innerHTML=window.GOYA_SIM_CATALOG.symbols.map(s=>'<option value="'+escape(s.ticker)+'">'+escape(s.ticker)+'</option>').join('');$('ticker').value='ZECUSDT';$('ticker').disabled=false;
   $('strategy').innerHTML=Lab.strategies.map(s=>'<option value="'+s.id+'">'+escape(s.label)+'</option>').join('');$('lab-exit').innerHTML=Lab.exitModes.map(s=>'<option value="'+s.id+'">'+escape(s.label)+'</option>').join('');$('lab-exit').value='earliest';
-  $('ticker').addEventListener('change',load);for(const id of ['strategy','lab-exit','execution','lab-allocation','lab-stop','lab-period'])$(id).addEventListener('change',()=>{clear();description();$('lab-run').disabled=!payload;status('조건을 바꿨습니다. 새 조합으로 재생하세요.');});
+  $('ticker').addEventListener('change',load);for(const id of ['strategy','lab-exit','execution','lab-allocation','lab-leverage','lab-stop','lab-take-profit','lab-period'])$(id).addEventListener('change',()=>{clear();description();$('lab-run').disabled=!payload;status('조건을 바꿨습니다. 새 조합으로 재생하세요.');});
   $('lab-run').addEventListener('click',run);$('lab-compare').addEventListener('click',e=>{const b=e.target.closest('button[data-strategy]');if(b){$('strategy').value=b.dataset.strategy;description();run();}});
-  $('lab-export').addEventListener('click',()=>{if(!completed||!result)return;const body={...result,frames:undefined,research:{strategyId:selectedInput.strategyId,exitMode:selectedInput.exitMode,execution:selectedInput.execution,firstSeenKnown:false}};const url=URL.createObjectURL(new Blob([JSON.stringify(body,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=payload.ticker+'-진입조합연구.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+  $('lab-export').addEventListener('click',()=>{if(!completed||!result)return;const body={...result,frames:undefined,research:{strategyId:selectedInput.strategyId,exitMode:selectedInput.exitMode,execution:selectedInput.execution,selectedSettings:{...selectedInput.settings},firstSeenKnown:false}};const url=URL.createObjectURL(new Blob([JSON.stringify(body,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=payload.ticker+'-진입조합연구.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
   window.addEventListener('pagehide',()=>{job++;if(player)player.pause();});load();study();
 })();

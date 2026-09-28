@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="description" content="보관된 신호로 진입 조합과 청산 기준을 바꿔 보는 과거 실험. 차트 배움터 모의연습의 부속 화면.">
 <link rel="icon" href="../img/icon.svg">
-<link rel="stylesheet" href="../shared/tokens.css?v=96846ab876"><link rel="stylesheet" href="entry-lab.css?v=96846ab876"><link rel="stylesheet" href="ticker-search.css?v=96846ab876"><link rel="stylesheet" href="month-replay.css?v=96846ab876">
+<link rel="stylesheet" href="../shared/tokens.css?v=92e37f71e3"><link rel="stylesheet" href="entry-lab.css?v=92e37f71e3"><link rel="stylesheet" href="ticker-search.css?v=92e37f71e3"><link rel="stylesheet" href="month-replay.css?v=92e37f71e3">
 <style id="cb-gate-style">
 .cb-gate{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:#f1f5f3;color:#14232b;font:20px/1.6 "Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;text-align:center;word-break:keep-all}
 .cb-gate[hidden]{display:none}.cb-card{max-width:30em;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 10px 30px rgba(11,93,107,.12)}
@@ -13,22 +13,24 @@
 .cb-spin{width:52px;height:52px;margin:0 auto 12px;border-radius:50%;border:6px solid #cfe3de;border-top-color:#0b5d6b;animation:cbspin 1s linear infinite}
 @keyframes cbspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.cb-spin{animation:none}}
 </style>
-<script src="../cb-link.js?v=96846ab876" data-mode="lab"></script>
+<script src="../cb-link.js?v=92e37f71e3" data-mode="lab"></script>
 </head>
 <body data-ex-theme="light"><main class="lab-shell"><a class="back" id="lab-back" href="../index.html#sim">← 지표 모의연습으로</a>
 <header><p class="eyebrow">차트 배움터 / 실험 노트 01</p><h1>어느 신호를 먼저 볼까요?</h1><p>같은 가격과 비용으로 진입 순서와 청산 기준을 바꿔 봅니다.<br>매매 장면을 따라간 뒤, 수익과 손실 폭을 함께 확인하세요.</p><span class="tag">보관된 신호로 하는 과거 실험</span></header>
 <section class="card"><div class="section-title"><span>01</span><h2>비교할 규칙</h2></div><div class="lab-grid">
 <div class="ticker-control"><div id="ticker-search-root"></div><label for="ticker">연습할 코인</label><select id="ticker" disabled><option>ZECUSDT</option></select></div>
 <label>진입 신호<select id="strategy"></select><small id="strategy-detail"></small></label>
-<label>청산 신호<select id="lab-exit"></select><small>반대 신호가 마감으로 확인된 후 청산</small></label>
+<label>반대 신호 청산<select id="lab-exit"></select><small>롱은 숏 신호, 숏은 롱 신호가 확인되면 정리합니다. 손실 중에도 청산합니다.</small></label>
 <label>체결 방식<select id="execution"><option value="hourly">1시간봉 · 다음 시가 일괄 진입</option><option value="bb15" disabled>15분 볼린저 분할 · 자료 확인 중</option></select><small id="lower-status">동일 시장의 실제 하위봉을 검증하고 있습니다.</small></label>
-<label>총 진입 증거금<select id="lab-allocation"><option value="30">계좌의 30%</option><option value="40" selected>계좌의 40%</option><option value="50">계좌의 50%</option></select><small>1배 · 분할 횟수 전체를 합친 한도</small></label>
-<label>손절 가격 변동<select id="lab-stop"><option value="1">1%</option><option value="2">2%</option><option value="3" selected>3%</option><option value="5">5%</option></select><small>1시간: 진입가 기준 / 분할: 밴드 바깥 기준</small></label>
+<label>총 진입 증거금<select id="lab-allocation"><option value="30">계좌의 30%</option><option value="40" selected>계좌의 40%</option><option value="50">계좌의 50%</option></select><small>분할 횟수 전체를 합친 증거금 한도</small></label>
+<label>레버리지<select id="lab-leverage"><option value="1" selected>1배 · 기존 기준</option><option value="2">2배</option><option value="3">3배</option><option value="4">4배</option><option value="5">5배</option><option value="6">6배</option><option value="7">7배</option><option value="8">8배</option><option value="9">9배</option><option value="10">10배</option></select><small>주문 금액 = 증거금 × 레버리지</small></label>
+<label>손절 가격 변동<select id="lab-stop"><option value="1">1%</option><option value="2">2%</option><option value="3" selected>3%</option><option value="4">4%</option><option value="5">5%</option><option value="6">6%</option><option value="7">7%</option><option value="8">8%</option><option value="9">9%</option><option value="10">10%</option></select><small>1시간: 진입가 기준 / 분할: 고정한 바깥 밴드 기준. 계좌 손실률이 아닌 가격 변동률입니다.</small></label>
+<label>추가 익절 가격 변동<select id="lab-take-profit"><option value="0" selected>끄기 · 반대 신호로 청산</option><option value="5">5%</option><option value="6">6%</option><option value="7">7%</option><option value="8">8%</option><option value="9">9%</option><option value="10">10%</option></select><small>평균 진입가 대비 롱은 상승, 숏은 하락 기준. 켜면 익절 가격·반대 신호 중 먼저 온 조건으로 청산하며 손절도 적용합니다.</small></label>
 <label>검증할 기간<select id="lab-period"><option value="all">전체 기록</option><option value="train">앞 70% · 규칙 탐색</option><option value="holdout">뒤 30% · 따로 확인</option></select><small>각 구간은 새 계좌로 시작합니다.</small></label></div>
-<p class="assumptions">초기 10,000 USDT · 레버리지 1배 · 수수료 편도 0.04% · 슬리피지 편도 0.02% · 펀딩비 제외. 총 증거금과 손절은 연구용 가정이며 실제 투자 권장값이 아닙니다.</p>
+<p class="assumptions" id="lab-setting-summary"></p><p class="assumptions">초기 10,000 USDT · 수수료 편도 0.04% · 슬리피지 편도 0.02% · 펀딩비 제외. 격리 증거금의 강제청산을 단순화해 계산합니다. 높은 레버리지에서는 설정한 손절보다 강제청산이 먼저 올 수 있습니다.</p>
 <div class="run-row"><button id="lab-run" class="primary" disabled>이 조합으로 차트 재생</button><p id="lab-status" role="status" aria-live="polite">자료를 준비합니다.</p></div></section>
-<section class="card rule-card"><div class="section-title"><span>02</span><h2>진입과 청산의 순서</h2></div><ol id="execution-rule"><li>마감된 1시간봉에서 진입 조건을 확인합니다.</li><li>다음 1시간봉 시가에 선택한 증거금으로 진입합니다.</li><li>손절 또는 선택한 반대 신호 중 먼저 확인한 조건으로 정리합니다.</li></ol><p>1시간봉 신호는 한 시간이 끝난 뒤에 알 수 있다고 가정합니다. 5분·15분봉으로 주문을 실행해도 원래 신호의 확인 시각이 앞당겨지지는 않습니다. 당시 최초 공개 시각·재도색 여부가 검증되지 않은 보관 신호를 사용합니다.</p></section>
+<section class="card rule-card"><div class="section-title"><span>02</span><h2>진입과 청산의 순서</h2></div><ol id="execution-rule"><li>마감된 1시간봉에서 진입 조건을 확인합니다.</li><li>다음 1시간봉 시가에 선택한 증거금과 레버리지로 진입합니다.</li><li>손절·추가 익절·반대 신호 중 먼저 확인한 조건으로 정리합니다. 강제청산이 먼저 올 수도 있습니다.</li></ol><p>1시간봉 신호는 한 시간이 끝난 뒤에 알 수 있다고 가정합니다. 5분·15분봉으로 주문을 실행해도 원래 신호의 확인 시각이 앞당겨지지는 않습니다. 당시 최초 공개 시각·재도색 여부가 검증되지 않은 보관 신호를 사용합니다.</p></section>
 <div id="lab-replay" hidden></div>
-<section id="month-results" class="card" hidden><p class="eyebrow">재생 완료</p><h2>최종 PNL과 같은 조건 비교</h2><p id="lab-result-rule"></p><div id="lab-stats" class="stats"></div><p id="lab-result-note"></p><h3>진입 순서를 바꾸면?</h3><p>같은 종목·기간·증거금·손절·청산 기준으로 비교합니다. 이 표는 과거 결과이며, 가장 높은 행이 앞으로도 가장 좋다는 뜻은 아닙니다.</p><div class="table-wrap"><table><thead><tr><th>진입 조건</th><th>순손익<br><small>평가 포함</small></th><th>실현 / 미실현</th><th>낙폭 / 거래</th><th>다시 보기</th></tr></thead><tbody id="lab-compare"></tbody></table></div><button id="lab-export">선택한 실험 JSON 저장 ↓</button></section>
+<section id="month-results" class="card" hidden><p class="eyebrow">재생 완료</p><h2>최종 PNL과 같은 조건 비교</h2><p id="lab-result-rule"></p><div id="lab-stats" class="stats"></div><p id="lab-result-note"></p><h3>진입 순서를 바꾸면?</h3><p>같은 종목·기간·증거금·레버리지·손절·익절·반대 신호 청산 기준으로 비교합니다. 이 표는 과거 결과이며, 가장 높은 행이 앞으로도 가장 좋다는 뜻은 아닙니다.</p><div class="table-wrap"><table><thead><tr><th>진입 조건</th><th>순손익<br><small>평가 포함</small></th><th>실현 / 미실현</th><th>낙폭 / 거래</th><th>다시 보기</th></tr></thead><tbody id="lab-compare"></tbody></table></div><button id="lab-export">선택한 실험 JSON 저장 ↓</button></section>
 <section class="card"><p class="eyebrow">전체 종목으로 교차 확인</p><h2>한 코인에서 잘된 규칙은 우연일 수 있습니다.</h2><p id="study-status">전 종목 연구 결과를 불러오는 중입니다.</p><div id="study-result"></div><details><summary>자료와 체결 가정 읽기</summary><p>보관된 종목만 평가하므로 상장폐지·자료 부족 종목의 영향을 완전히 제거하지 못합니다. 뒤 30%는 앞 구간에서 정한 규칙을 확인하는 구간이며, 이미 관찰된 같은 달의 자료여서 미래 실시간 검증을 대신하지 않습니다. 순이익은 마지막 미청산 포지션의 평가손익을 포함합니다.</p><p>볼린저 분할은 직전 마감 15분봉 20개의 종가 평균과 표준편차 2배를 사용합니다. 1시간 시세를 잘라 만든 가상 15분봉은 사용하지 않습니다. 누락 봉·불일치 시장은 중단 또는 제외합니다.</p></details></section>
 <footer>차트 배움터 · 김민수 / 계산 가정이 있는 과거 연구</footer></main></body></html>
