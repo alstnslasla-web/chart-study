@@ -1,4 +1,4 @@
-/* GOYA EX research-only deterministic candle replay. No network or real orders. */
+/* Research-only deterministic candle replay. No network or real orders. */
 (function (root, factory) {
   'use strict';
   var api = factory();
@@ -39,6 +39,9 @@
         fail('INVALID_SETTINGS', key + ' 설정은 ' + range[0] + ' ~ ' + range[1] + ' 범위의 숫자여야 합니다.');
       if (INTEGERS.indexOf(key) >= 0 && !Number.isInteger(result[key])) fail('INVALID_SETTINGS', key + ' 설정은 정수여야 합니다.');
     });
+    // 손절폭이 미끄러짐(진입·청산 두 번)보다 작거나 같으면 진입하자마자 손절된다(2026-10-01 검수).
+    if (result.stopLossPct > 0 && result.stopLossPct * 100 <= 2 * result.slippageBps)
+      fail('INVALID_SETTINGS', '손절폭(' + result.stopLossPct + '%)이 미끄러짐(진입·청산 합계 ' + (2 * result.slippageBps / 100) + '%) 이하라 진입하자마자 손절됩니다. 손절폭을 늘려 주세요.');
     return result;
   }
   // Order sizing shared by the paper fill and the pre-order quote, so the screen shows exactly what the fill will use.
@@ -198,15 +201,19 @@
       var rawGross = pnl(p, exitPrice), fees = p.entryFee + exitFee;
       var rawReturn = p.margin + rawGross - exitFee;
       var isolatedLossAdjustment = rawReturn < 0 ? -rawReturn : 0;
+      // 강제청산은 거래소처럼 증거금을 모두 잃는다. 계산상 남는 금액은 청산 수수료로 본다(2026-10-01 검수).
+      var liquidationFee = reason === 'liquidation' && rawReturn > 0 ? rawReturn : 0;
+      fees += liquidationFee;
       var gross = rawGross + isolatedLossAdjustment;
-      cash += Math.max(0, rawReturn);
-      var exactOpen = reason === 'manual' || reason === 'opposite_signal' || (detail && detail.gap);
+      cash += Math.max(0, rawReturn) - liquidationFee;
+      var exactOpen = reason === 'manual' || reason === 'opposite_signal' || (detail && (detail.gap || detail.openFill));
       // 기간 말 정리는 마지막 봉 종가에 정확히 체결한다(봉 안 어느 시점인지 모르는 손절·익절과 다르다).
       var precision = reason === 'end_of_sample' ? 'close' : exactOpen ? 'open' : 'bar_close_bound';
       trades.push(Object.assign({}, clone(p), { exitPrice: exitPrice, exitNotional: exitNotional, exitFee: exitFee,
         grossPnl: gross, rawGrossPnl: rawGross, fees: fees, netPnl: gross - fees,
         returnPct: (gross - fees) / p.margin * 100, notionalReturnPct: (gross - fees) / p.notional * 100,
-        lossCapped: isolatedLossAdjustment > 0, isolatedLossAdjustment: isolatedLossAdjustment,
+        lossCapped: isolatedLossAdjustment > 0, isolatedLossAdjustment: isolatedLossAdjustment, liquidationFee: liquidationFee,
+        closeBeyondLine: Boolean(detail && detail.openFill),
         exitAt: exactOpen ? bar.time : bar.time + HOUR, exitTime: exactOpen ? bar.time : bar.time + HOUR,
         exitBarTime: bar.time, exitBarIndex: index,
         exitTimePrecision: precision, reason: reason,
@@ -226,14 +233,15 @@
       if (order.action === 'close') {
         // A gap beyond the liquidation boundary still exhausts the isolated position,
         // even when a signal exit was waiting for this same opening price.
-        var liquidatedAtOpen = order.reason === 'opposite_signal' &&
-          (position.side === 'long' ? bar.o <= position.liquidationPrice : bar.o >= position.liquidationPrice);
+        // 2026-10-01 검수: 반대 신호 청산뿐 아니라 모든 예약 청산(수동 포함)에 같은 판정을 쓴다.
+        var liquidatedAtOpen = (position.side === 'long' ? bar.o <= position.liquidationPrice : bar.o >= position.liquidationPrice);
         // 예약된 자동 청산과 같은 시가에 손절선(초기·추적)을 넘는 갭이 나면 보호 주문이 먼저다(연구 엔진과 같은 순서). 체결가는 같은 시가.
-        var stopGapAtOpen = order.reason === 'opposite_signal' && !liquidatedAtOpen && position.stopLoss !== null &&
+        var stopGapAtOpen = !liquidatedAtOpen && position.stopLoss !== null &&
           (position.side === 'long' ? bar.o <= position.stopLoss : bar.o >= position.stopLoss);
         var closeReason = liquidatedAtOpen ? 'liquidation' : stopGapAtOpen ? (position.stopKind === 'trailing' ? 'trailing_stop' : 'stop_loss') : (order.reason || 'manual');
         closePosition(bar, bar.o, closeReason,
-          { gap: liquidatedAtOpen || stopGapAtOpen, note: stopGapAtOpen ? order.note + ' · 같은 시가에 손절선을 넘는 갭이 먼저 닿아 손절로 기록' : order.note, trigger: order.trigger });
+          { gap: liquidatedAtOpen || (stopGapAtOpen && !position.stopBeyondClose), openFill: stopGapAtOpen && position.stopBeyondClose,
+            note: stopGapAtOpen ? order.note + (position.stopBeyondClose ? ' · 직전 봉 마감 때 이미 추적선 밖이라 손절로 기록' : ' · 같은 시가에 손절선을 넘는 갭이 먼저 닿아 손절로 기록') : order.note, trigger: order.trigger });
         return;
       }
       var cfg = order.settings, side = order.action;
@@ -255,12 +263,15 @@
     function updateTrail(bar) {
       if (!position || finished) return;
       var p = position, long = p.side === 'long', cfg = p.settings;
+      p.stopBeyondClose = false;
       if (!(cfg.trailPct > 0)) return;
       p.best = long ? Math.max(p.best, bar.h) : Math.min(p.best, bar.l);
       var favorable = (long ? p.best / p.entryPrice - 1 : 1 - p.best / p.entryPrice) * 100;
       if (favorable < cfg.trailActivationPct) return;
       var next = p.best * (1 + (long ? -1 : 1) * cfg.trailPct / 100);
       if (p.stopLoss === null || (long ? next > p.stopLoss : next < p.stopLoss)) { p.stopLoss = next; p.stopKind = 'trailing'; p.trailActive = true; }
+      // 이 봉 고가·저가로 올린 선이 이미 이 봉 종가보다 안쪽이면, 다음 시가 청산은 갭이 아니다(2026-10-01 검수).
+      p.stopBeyondClose = p.stopKind === 'trailing' && (long ? bar.c <= p.stopLoss : bar.c >= p.stopLoss);
     }
     function checkBrackets(bar) {
       if (!position || finished) return;
@@ -270,7 +281,11 @@
       if (gapLiquidation) { closePosition(bar, bar.o, 'liquidation', { gap: true }); return; }
       var gapStop = sl !== null && (long ? bar.o <= sl : bar.o >= sl);
       var gapProfit = tp !== null && (long ? bar.o >= tp : bar.o <= tp);
-      if (gapStop) { closePosition(bar, bar.o, stopReason, { gap: true }); return; }
+      if (gapStop) {
+        if (p.stopBeyondClose) closePosition(bar, bar.o, stopReason, { openFill: true, note: '직전 봉 마감 때 이미 추적선 밖 → 다음 시가 청산' });
+        else closePosition(bar, bar.o, stopReason, { gap: true });
+        return;
+      }
       if (gapProfit) { closePosition(bar, tp, 'take_profit', { gap: true }); return; }
       var hitLiquidation = long ? bar.l <= liq : bar.h >= liq;
       var hitStop = sl !== null && (long ? bar.l <= sl : bar.h >= sl);
@@ -317,7 +332,9 @@
           return s.source === 'ut_signal2' && s.group === 'none' &&
             s.signal === (opposite === 'long' ? 'L' : 'S') && isNew(s.time + HOUR);
         });
-        if (found) {
+        // 같은 봉에 LL과 SS가 함께 찍히면(방향 불명) 청산 신호로 세지 않는다(③·연구 엔진과 같은 규칙, 2026-10-01 검수).
+        var smartAmbiguous = found && events.some(function (row) { var s = row.value; return s.source === 'ut_signal2' && s.group === 'none' && s.time === found.value.time && s.signal === (opposite === 'long' ? 'S' : 'L'); });
+        if (found && !smartAmbiguous) {
           var signal = found.value;
           trigger = { type: 'smart', direction: opposite, label: opposite === 'long' ? 'LL' : 'SS',
             time: signal.time, availableAt: signal.time + HOUR, observedAt: now,
@@ -370,13 +387,17 @@
     var engine = create(options), state = engine.snapshot(), firstState = state;
     var cursor = 0, accepted = [], skipped = [];
     var startTime = state.current.time;
+    // 마감 시각마다 포지션·대기 주문이 있었는지 적어 둔다. 관찰봉을 두고 늦게 들어가는 조건도 '조건이 처음 보인 시각'의 상태로 판단해
+    // 관찰봉 0과 같은 규칙(그때 포지션·대기 주문이 있으면 건너뜀, 청산에 쓴 조건으로 반대 진입하지 않음)을 지킨다(2026-10-01 검수).
+    var busyAt = {};
     function consumeVisible() {
       while (cursor < completions.length && completions[cursor].event.availableAt <= state.cutoff) {
-        var item = completions[cursor++], reason = null;
-        if (item.event.availableAt < startTime) reason = 'before_start';
+        var item = completions[cursor++], reason = null, firstVisible = item.event.completeAt + HOUR;
+        if (item.event.availableAt <= startTime) reason = 'before_start';
         else if (state.finished) reason = state.finishReason === 'archive_end' ? 'end_no_next_bar' : state.finishReason;
         else if (state.pending) reason = 'order_pending';
         else if (state.position) reason = 'position_open';
+        else if (item.event.availableAt > firstVisible && busyAt[firstVisible]) reason = busyAt[firstVisible];
         if (reason) {
           skipped.push({ sourceIndex: item.sourceIndex, completion: item.event,
             reason: reason, evaluatedAt: state.cutoff });
@@ -386,6 +407,7 @@
             submittedAt: state.cutoff, submittedIndex: state.index });
         }
       }
+      busyAt[state.cutoff] = state.pending ? 'order_pending' : state.position ? 'position_open' : null;
     }
     // The observer sees only an isolated, already-public closed-hour snapshot.
     // It cannot mutate strategy state, execution prices or the final result.

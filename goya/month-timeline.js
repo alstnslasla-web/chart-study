@@ -39,7 +39,7 @@
         add({ type: 'exit', time: trade.exitAt, barTime: trade.exitBarTime, side: trade.side,
           price: trade.exitPrice, tradeId: trade.id, fee: trade.exitFee, netPnl: trade.netPnl,
           precision: trade.exitTimePrecision, reason: trade.reason, ambiguous: trade.ambiguous, gapFill: Boolean(trade.gapFill), stopKind: /stop/.test(trade.reason) ? trade.stopKind || null : null,
-          label: (trade.side === 'long' ? '롱 청산 · 매도 · ' : '숏 청산 · 매수 · ') + (EXIT_LABELS[trade.reason] || '청산') + (trade.gapFill && /stop/.test(trade.reason) ? ' · 갭 시가 체결' : '') });
+          label: (trade.side === 'long' ? '롱 청산 · 매도 · ' : '숏 청산 · 매수 · ') + (EXIT_LABELS[trade.reason] || '청산') + (trade.gapFill && /stop/.test(trade.reason) ? ' · 갭 시가 체결' : trade.closeBeyondLine ? ' · 마감 때 이미 선 밖 → 다음 시가 청산' : '') });
       });
       entered(snapshot.position);
       snapshot.signals.slice(priorSignals).forEach(function (signal) {

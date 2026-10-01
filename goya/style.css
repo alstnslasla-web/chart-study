@@ -146,3 +146,7 @@ th, td { overflow-wrap: break-word; }
 /* 2026-09-28 설정 조합(프리셋)·연구 설정 줄 */
 .preset-row{grid-column:1/-1;display:grid;gap:6px}.preset-row select{width:100%;font-size:0.8125rem}.preset-row .optional{color:var(--muted);font-weight:400;font-size:0.7812rem}.preset-note{margin:0;font-size:0.7812rem;color:var(--muted);line-height:1.55}.settings-row select{min-height:37px;font-size:0.7812rem;padding:6px 8px}.research-row{border-top:1px dashed #e4e7de}
 @media (max-width:560px){.setup #date-label{grid-column:1/-1}}
+
+/* 2026-10-01 검수: 60대 기준 누르기 쉬운 크기, 위험 안내 */
+.settings-row select,.research-row select,.preset-row select{min-height:48px}.chart-filters label{min-height:44px}.text-button{min-height:44px}
+.risk-note{margin-top:.5rem;padding:.55rem .75rem;border-left:4px solid #b4433a;background:#fbefec;color:#5d2621;font-size:.8125rem;line-height:1.6}

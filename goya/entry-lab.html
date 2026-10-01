@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="description" content="보관된 신호로 진입 조합과 청산 기준을 바꿔 보는 과거 실험. 차트 배움터 모의연습의 부속 화면.">
 <link rel="icon" href="../img/icon.svg">
-<link rel="stylesheet" href="../shared/tokens.css?v=a5db5e2160"><link rel="stylesheet" href="entry-lab.css?v=a5db5e2160"><link rel="stylesheet" href="ticker-search.css?v=a5db5e2160"><link rel="stylesheet" href="month-replay.css?v=a5db5e2160">
+<link rel="stylesheet" href="../shared/tokens.css?v=21d5e6d772"><link rel="stylesheet" href="entry-lab.css?v=21d5e6d772"><link rel="stylesheet" href="ticker-search.css?v=21d5e6d772"><link rel="stylesheet" href="month-replay.css?v=21d5e6d772">
 <style id="cb-gate-style">
 .cb-gate{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:#f1f5f3;color:#14232b;font:20px/1.6 "Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;text-align:center;word-break:keep-all}
 .cb-gate[hidden]{display:none}.cb-card{max-width:30em;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 10px 30px rgba(11,93,107,.12)}
@@ -13,10 +13,10 @@
 .cb-spin{width:52px;height:52px;margin:0 auto 12px;border-radius:50%;border:6px solid #cfe3de;border-top-color:#0b5d6b;animation:cbspin 1s linear infinite}
 @keyframes cbspin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.cb-spin{animation:none}}
 </style>
-<script src="../cb-link.js?v=a5db5e2160" data-mode="lab"></script>
+<script src="../cb-link.js?v=21d5e6d772" data-mode="lab"></script>
 </head>
 <body data-ex-theme="light"><main class="lab-shell"><a class="back" id="lab-back" href="../index.html#sim">← 지표 모의연습으로</a>
-<header><p class="eyebrow">차트 배움터 / 실험 노트 01</p><h1>어느 신호를 먼저 볼까요?</h1><p>같은 가격과 비용으로 진입 순서와 청산 기준을 바꿔 봅니다.<br>매매 장면을 따라간 뒤, 수익과 손실 폭을 함께 확인하세요.</p><span class="tag">보관된 신호로 하는 과거 실험</span></header>
+<header><p class="eyebrow">차트 배움터 / 실험 노트 01</p><h1>어느 신호를 먼저 볼까요?</h1><p>같은 가격과 비용으로 진입 순서와 청산 기준을 바꿔 봅니다.<br>매매 장면을 따라간 뒤, 수익과 손실 폭을 함께 확인하세요.</p><p class="risk-note">투자 권유·조언이 아닙니다. 과거 기록으로 한 모의 계산이며, 실제 선물 거래는 레버리지 때문에 원금을 모두 잃거나 강제청산될 수 있습니다.</p><span class="tag">보관된 신호로 하는 과거 실험</span></header>
 <section class="card"><div class="section-title"><span>01</span><h2>비교할 규칙</h2></div><div class="lab-grid">
 <div class="ticker-control"><div id="ticker-search-root"></div><label for="ticker">연습할 코인</label><select id="ticker" disabled><option>ZECUSDT</option></select></div>
 <label>진입 신호<select id="strategy"></select><small id="strategy-detail"></small></label>
@@ -33,4 +33,4 @@
 <div id="lab-replay" hidden></div>
 <section id="month-results" class="card" hidden><p class="eyebrow">재생 완료</p><h2>최종 PNL과 같은 조건 비교</h2><p id="lab-result-rule"></p><div id="lab-stats" class="stats"></div><p id="lab-result-note"></p><h3>진입 순서를 바꾸면?</h3><p>같은 종목·기간·증거금·레버리지·손절·익절·반대 신호 청산 기준으로 비교합니다. 이 표는 과거 결과이며, 가장 높은 행이 앞으로도 가장 좋다는 뜻은 아닙니다.</p><div class="table-wrap"><table><thead><tr><th scope="col">진입 조건</th><th scope="col">순손익<br><small>평가 포함</small></th><th scope="col">실현 / 미실현</th><th scope="col">낙폭 / 거래</th><th scope="col">다시 보기</th></tr></thead><tbody id="lab-compare"></tbody></table></div><button id="lab-export">선택한 실험 JSON 저장 ↓</button></section>
 <section class="card"><p class="eyebrow">전체 종목으로 교차 확인</p><h2>한 코인에서 잘된 규칙은 우연일 수 있습니다.</h2><p id="study-status">전 종목 연구 결과를 불러오는 중입니다.</p><div id="study-result"></div><details><summary>자료와 체결 가정 읽기</summary><p>보관된 종목만 평가하므로 상장폐지·자료 부족 종목의 영향을 완전히 제거하지 못합니다. 뒤 30%는 앞 구간에서 정한 규칙을 확인하는 구간이며, 이미 관찰된 같은 달의 자료여서 미래 실시간 검증을 대신하지 않습니다. 순이익은 마지막 미청산 포지션의 평가손익을 포함합니다.</p><p>볼린저 분할은 직전 마감 15분봉 20개의 종가 평균과 표준편차 2배를 사용합니다. 1시간 시세를 잘라 만든 가상 15분봉은 사용하지 않습니다. 누락 봉·불일치 시장은 중단 또는 제외합니다.</p></details></section>
-<footer>차트 배움터 · 김민수 / 계산 가정이 있는 과거 연구</footer></main></body></html>
+<footer>차트 배움터 · 만든이 김민수 · 무단복제 금지 / 계산 가정이 있는 과거 연구 · 투자 권유 아님</footer></main></body></html>

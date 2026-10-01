@@ -15,9 +15,9 @@
     default: { label: '기본', settings: { exitMode: 'opposite_smart', leverage: 1, allocationPct: 10, takeProfitPct: 0, stopLossPct: 0, signalWindowHours: 48, entryDelayBars: 0, entryFilter: 'none', trailActivationPct: 0, trailPct: 0, endOfSample: 'mark' },
       note: '지금까지의 기본 방식입니다. 같은 방향 신호 2가지 이상(48시간 안)이 모이면 다음 봉 시가에 진입하고, 반대 LL/SS가 나오면 다음 시가에 정리합니다. 레버리지 1배·증거금 10%, 추가 익절·손절과 추적 손절은 꺼져 있습니다.' },
     zec_candidate: { label: 'ZEC 연구 후보 · 24h 2종 + 3/2 추적', settings: { exitMode: 'opposite_smart', leverage: 3, allocationPct: 50, takeProfitPct: 0, stopLossPct: 2, signalWindowHours: 24, entryDelayBars: 0, entryFilter: 'goya', trailActivationPct: 3, trailPct: 2, endOfSample: 'close' },
-      note: 'ZECUSDT 보관 기록(8/24~9/27, 816봉)을 사후 계산해 고른 연구 후보입니다. 24시간 안 같은 방향 2종이 모이고 종가가 GOYA LINE 방향이면 다음 시가 진입, 초기 손절 2%, 3% 이익부터 최고가·최저가 대비 2% 추적 손절, 반대 LL/SS 청산, 기간 말 비용 포함 정리. 3배·증거금 50%에서 +83.34%(최종 18,334 USDT), 최대 낙폭 10.81%, 30거래 19승이었습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였고, 앞 24일로 고른 규칙을 뒤 10일에 적용하면 +6.98%, 매주 다시 고르는 순차 검증 합계는 −2.74%였습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다. 앱 자료는 그 뒤 기간까지 늘어나므로, 여기서 한 달 재생을 하면 결과가 이 숫자와 다를 수 있습니다.' },
-    user_reference: { label: '사용자 아이디어 기준안 · 48h 2종 + 1봉 관찰 + 3/2 추적', settings: { exitMode: 'opposite_core', leverage: 3, allocationPct: 50, takeProfitPct: 0, stopLossPct: 3, signalWindowHours: 48, entryDelayBars: 1, entryFilter: 'none', trailActivationPct: 3, trailPct: 2, endOfSample: 'close' },
-      note: '사용자 아이디어(같은 방향 2개 → 한 봉 관찰 → 진입 → 수익 나면 추적 손절 → 반대 신호 1개에 청산)를 숫자로 옮긴 기준안입니다. 48시간 안 같은 방향 2종이 모이면 한 봉 더 보고(관찰 중 반대 신호가 나오면 취소) 그다음 시가 진입, 초기 손절 3%, 3% 이익부터 2% 추적 손절, 반대 LL/SS 또는 L2·L3/S2·S3 하나에 청산, 기간 말 비용 포함 정리. ZECUSDT 3배·증거금 50%에서 +34.23%, 최대 낙폭 15.36%, 35거래(추적 손절을 끄면 +25.96%)였습니다. 손절·추적 숫자는 사용자가 정하지 않아 정리자가 가정한 값이며 실제 수동 매매를 복원한 결과가 아닙니다. 뒤 10일 구간에서는 이 기준안(+11.37%)이 연구 후보(+6.98%)보다 높았습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다. 앱 자료는 그 뒤 기간까지 늘어나므로 결과가 이 숫자와 다를 수 있습니다.' }
+      note: 'ZECUSDT 보관 기록(8/24~9/27, 816봉)을 사후 계산해 고른 연구 후보입니다. 24시간 안 같은 방향 2종이 모이고 종가가 GOYA LINE 방향이면 다음 시가 진입, 초기 손절 2%, 3% 이익부터 최고가·최저가 대비 2% 추적 손절, 반대 LL/SS 청산, 기간 말 비용 포함 정리. 3배·증거금 50%에서 +83.34%(최종 18,334 USDT), 최대 낙폭 10.81%, 30거래 19승이었습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였고, 앞 24일로 고른 규칙을 뒤 10일에 적용하면 +6.98%, 매주 다시 고르는 순차 검증 합계는 −2.74%였습니다. 같은 설정을 같은 기간 다른 352종목에 적용하면 수익률 중앙값이 −6.75%로, ZEC에서 찾은 규칙이 다른 코인에는 통하지 않았습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다. 앱 자료는 그 뒤 기간까지 늘어나므로, 여기서 한 달 재생을 하면 결과가 이 숫자와 다를 수 있습니다.' },
+    user_reference: { label: '만든이 아이디어 기준안 · 48h 2종 + 1봉 관찰 + 3/2 추적', settings: { exitMode: 'opposite_core', leverage: 3, allocationPct: 50, takeProfitPct: 0, stopLossPct: 3, signalWindowHours: 48, entryDelayBars: 1, entryFilter: 'none', trailActivationPct: 3, trailPct: 2, endOfSample: 'close' },
+      note: '만든이 아이디어(같은 방향 2개 → 한 봉 관찰 → 진입 → 수익 나면 추적 손절 → 반대 신호 1개에 청산)를 숫자로 옮긴 기준안입니다. 48시간 안 같은 방향 2종이 모이면 한 봉 더 보고(관찰 중 반대 신호가 나오면 취소) 그다음 시가 진입, 초기 손절 3%, 3% 이익부터 2% 추적 손절, 반대 LL/SS 또는 L2·L3/S2·S3 하나에 청산, 기간 말 비용 포함 정리. ZECUSDT 보관 기록(8/24~9/27, 816봉) 3배·증거금 50%에서 +21.89%, 최대 낙폭 17.44%, 32거래(추적 손절을 끄면 +11.18%)였습니다. 손절·추적 숫자는 만든이가 정하지 않아 연구에서 가정한 값이며 실제 수동 매매를 복원한 결과가 아닙니다. 뒤 10일 구간에서는 이 기준안(+1.76%)이 연구 후보(+6.98%)보다 낮았습니다. 2026-10-01 검수에서 ‘청산에 쓴 조건으로 바로 반대 진입하던 계산’을 바로잡아 처음 안내한 숫자(+34.23%)보다 낮아졌습니다. 같은 비용으로 첫 봉부터 롱만 보유했다면 +144.32%(낙폭 22.26%)였습니다. 신호의 최초 발행 시각과 펀딩비는 검증·반영하지 않았습니다. 과거 한 종목의 계산이며 미래 수익·승률을 보장하지 않습니다. 앱 자료는 그 뒤 기간까지 늘어나므로 결과가 이 숫자와 다를 수 있습니다.' }
   };
   const CUSTOM_NOTE = '아래 값을 직접 정한 설정입니다. 조합을 고르면 그 값으로 바뀌고, 값을 하나라도 바꾸면 다시 ‘직접 설정’이 됩니다.';
   // CSV·안내문에 앱 내부 코드(long, open, after_data_gap 등)가 그대로 나가지 않게 쓰는 한글 이름. 파일 이름 앞 짧은 이름은 exitShort.
@@ -264,7 +264,7 @@
     try { const q = window.GoyaSimEngine.quoteOrder(s.settings, s.cash); return '<br>다음 주문 예상: 증거금 ' + fmt(q.margin) + ' · 포지션 총금액 ' + fmt(q.notional) + ' · 진입 수수료 약 ' + fmt(q.entryFee) + ' USDT · 수량은 다음 봉 시가로 정해집니다'; } catch (_) { return ''; }
   }
   function tradeReason(trade) {
-    return (reasonLabels[trade.reason] || trade.reason) + (trade.gapFill && /stop/.test(trade.reason) ? ' · 갭 시가 체결' : '') + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
+    return (reasonLabels[trade.reason] || trade.reason) + (trade.gapFill && /stop/.test(trade.reason) ? ' · 갭 시가 체결' : trade.closeBeyondLine ? ' · 마감 때 이미 선 밖 → 다음 시가 청산' : '') + (trade.exitTrigger ? ' · ' + trade.exitTrigger.label + ' 확인 ' + kst(trade.exitTrigger.availableAt) + ' KST' : '');
   }
   function mappingLabel(mapping) { return mapping === 'two' ? '같은 방향 신호 2가지 이상 · 우리 규칙' : mapping === 'bothrs' ? '비교 연구 세 조건 순서 · RS 교차' : mapping === 'rls' ? '비교 연구 RL / RS' : mapping === 'cross' ? '비교 연구 Cross 진입' : '미선택'; }
   // 판단 기록(화면)과 기록 CSV가 같은 문구를 쓴다. 취소된 예약·자동 청산은 내가 누른 판단처럼 보이지 않게 따로 적는다.
@@ -285,13 +285,13 @@
   const csvSide = side => sideNames[side] || side || '';
   const bpsPct = bps => String(Number((Number(bps) / 100).toFixed(4)));
   const dataVersion = () => (window.GOYA_SIM_CATALOG && window.GOYA_SIM_CATALOG.version) || '';
-  // 자료 출처 줄: 두 번 받은 기록을 이어 붙인 사실, 뒤 기록에 없는 종목, 자료판 이름.
+  // 자료 출처 줄: 여러 번 받은 기록을 이어 붙인 사실(받은 횟수), 뒤 기록에 없는 종목, 자료판 이름.
   function archiveNote(catalog) {
     const dates = Array.isArray(catalog.archives) ? catalog.archives.map(a => a && a.date).filter(Boolean) : [];
     const short = d => d.replace(/^\d{4}-0?/, '').replace(/-0?/, '/');
     const last = dates[dates.length - 1];
     const older = last ? catalog.symbols.filter(item => item.lastArchive && item.lastArchive !== last) : [];
-    return (dates.length > 1 ? ' ' + dates.map(short).join('·') + ' 두 번 받은 기록을 이어 붙였습니다(앞부분은 그대로 두고 뒷부분만 더함).' : '')
+    return (dates.length > 1 ? ' ' + dates.map(short).join('·') + ' ' + dates.length + '번 받은 기록을 이어 붙였습니다(앞부분은 그대로 두고 뒷부분만 더함).' : '')
       + (older.length ? ' ' + older.map(item => item.ticker + '(' + short(item.lastArchive) + '까지)').join(', ') + '은 뒤 기록에 없어 그때까지만 있습니다.' : '')
       + (catalog.version ? ' 자료판 ' + catalog.version + '.' : '');
   }
@@ -428,7 +428,7 @@
         const options = { ticker: state.ticker, bars: state.data.bars, signals: state.data.signals, completions: prepared.completions, exitCompletions: state.scenarios.completions, settings, archiveEnd: Date.parse(window.GOYA_SIM_CATALOG.anchorUTC)/1000 };
         const collected=window.GoyaMonthTimeline.collect(options);
         const result=collected.result;
-        const comparison=['opposite_smart','opposite_complete','opposite_core'].map(exitMode => exitMode===result.settings.exitMode ? result : window.GoyaSimEngine.runStrategy({...options,settings:{...options.settings,exitMode}}));
+        const comparison=['opposite_smart','opposite_complete','opposite_core'].concat(['opposite_smart','opposite_complete','opposite_core'].includes(result.settings.exitMode)?[]:[result.settings.exitMode]).map(exitMode => exitMode===result.settings.exitMode ? result : window.GoyaSimEngine.runStrategy({...options,settings:{...options.settings,exitMode}}));
         state.month={result,comparison,options,prepared,mapping:$('cross-mapping').value,unusable:state.scenarios.unusable.concat(prepared.cancelled),generatedAt:new Date().toISOString(),completed:false};
         startMonthReplay(collected.frames);
         notify(state.ticker+' 과거 차트 재생 중입니다. 지표와 매매 장면이 해당 시점에 나타납니다.');

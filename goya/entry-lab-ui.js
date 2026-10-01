@@ -2,7 +2,9 @@
   'use strict';
   const $=id=>document.getElementById(id),Lab=window.GoyaEntryLab;
   let payload=null,lower=null,manifest=null,player=null,job=0,loadJob=0,result=null,selectedInput=null,completed=false,lowerError='';
-  // 앞/뒤 구간 분리 시각 = 자료판 전체 구간의 앞 70%(시간 단위 내림). 9/23+9/26 합본(798시간)에서는 전 종목 연구와 같은 558시간이다.
+  // 앞/뒤 구간 분리 시각 = 자료판 전체 구간의 앞 70%(시간 단위 내림). 전 종목 연구 요약(entry-study-summary.json)은 9/26까지 자료(798시간)에서 앞 558시간으로 나눈 결과라 지금 자료판의 분리 시각과 다를 수 있다.
+  // 글자 크기는 배움터의 '가' 설정(cb:settings.font)을 따른다(2026-10-01 검수).
+  try { const f = JSON.parse(localStorage.getItem('cb:settings') || '{}').font; if (['M', 'L', 'XL'].includes(f)) document.documentElement.dataset.font = f; } catch (_) { /* 저장소를 못 쓰면 기본 크기 */ }
   const kst=sec=>{const d=new Date(sec*1000+9*3600*1000),z=x=>String(x).padStart(2,'0');return z(d.getUTCMonth()+1)+'/'+z(d.getUTCDate())+' '+z(d.getUTCHours())+':'+z(d.getUTCMinutes());};
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const num=n=>Number.isFinite(n)?n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';

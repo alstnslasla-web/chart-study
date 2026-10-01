@@ -325,7 +325,7 @@
       ${(L.objectives || []).length ? `<div class="card"><h2>이 강에서 익힐 것</h2><ul>${L.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}
       ${(L.sections || []).map((s) => `<div class="card section-card"><h2>${esc(s.heading)}</h2><p>${esc(s.body)}</p></div>`).join('')}
       ${(L.checklist || []).length ? `<div class="card"><h2>스스로 확인하기</h2><ul class="check-list">${L.checklist.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
-      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary>${EXT_NOTE}<ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
+      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary>${EXT_NOTE}<ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
       ${partOf(L) === 3 ? '<a class="big-btn" href="#sim"><span aria-hidden="true">📈</span> 지표 모의연습에서 직접 해보기</a>' : ''}
       <a class="big-btn accent" href="#quiz/play?mode=lesson&id=${esc(id)}"><span aria-hidden="true">🎯</span> 이 강 문제 풀기 (${qN}문제)</a>
       <button class="big-btn ${S.done[id] ? 'ok' : 'secondary'}" type="button" data-act="done">${S.done[id] ? '✓ 다 읽었어요 (완료)' : '다 읽었어요'}</button>
@@ -385,7 +385,7 @@
       <section class="card tf-anchor" id="tf-risk"><h2>5. 작은 봉보다 먼저 정할 위험</h2><p><strong>무효화 위치 → 손실 예산 → 수량 → 비용·목표 확인</strong> 순서로 적습니다. 손절은 진입 근거가 틀렸다고 볼 구조에 맞춰 검토하는 것이지, 언제나 1분봉 꼬리 바로 아래에 붙이는 것이 아닙니다. 손절 거리가 넓어지면 같은 예산에서 수량을 줄이거나 거래를 하지 않을 수 있습니다.</p><div class="notice bad"><strong>봉 마감 기다리기와 손절 미루기는 다릅니다</strong>신호를 확인하는 시간 기준과 실제 손절·최대 손실 기준을 각각 적으세요. 일봉 마감을 기다린다며 위험 한도를 없애면 안 됩니다. 손절 주문도 지정한 트리거 가격의 체결을 보장하지 않으며, 수수료·슬리피지·미체결 위험은 남습니다.</div><a class="big-btn secondary" href="#lesson/risk-first">손절과 수량 계산 배우기</a><h3>이럴 때는 진입하지 않고 보류합니다</h3><ul class="check-list">${G.noTrade.map(t => `<li>${esc(t)}</li>`).join('')}</ul></section>
       <section class="card"><h2>6. 내 말로 계획 한 줄 쓰기</h2><p class="tf-plan-example">“일봉의 ___ 흐름 안에서 4시간봉 ___ 구간을 관찰한다. 1시간봉 ___ 조건이 마감으로 확인되고 15분봉 ___, 5분봉 ___ 조건이 생기면 진입 후보로 검토한다. 무효화는 ___, 손실 예산은 ___, 수량은 ___, 목표와 비용은 ___다. ___이면 거래하지 않는다.”</p><p class="muted">종이에 가상 사례로 채워 보세요. 현재 시장의 매수·매도 추천이 아니며, 이 화면에서 실제 주문은 나가지 않습니다.</p><ul class="check-list">${G.checklist.map(c => `<li>${esc(c)}</li>`).join('')}</ul><a class="big-btn secondary" href="#lesson/plan-exits">진입·손절·청산 계획으로 이어가기</a></section>
       <section class="card tf-anchor" id="tf-checks"><h2>7. 짧게 확인하기</h2><p class="muted">이 가이드의 자가점검 3문항입니다. 문제 도전의 점수·학습 기록에는 합산하지 않습니다.</p>${G.checks.map((q, qi) => `<div class="tf-check"><h3>${qi + 1}. ${esc(q.question)}</h3><div class="tf-check-options" data-tf-check="${qi}">${q.options.map((o, oi) => `<button class="opt-btn" type="button" data-tf-answer="${oi}">${esc(o)}</button>`).join('')}</div><p class="feedback" id="tf-feedback-${qi}" role="status" tabindex="-1" hidden></p></div>`).join('')}<button class="big-btn secondary" type="button" id="tf-check-reset">자가점검 다시 풀기</button></section>
-      <details class="card"><summary>공식 교육 자료와 이 가이드의 범위</summary><div class="tf-details-body"><p class="muted">확인 ${esc(G.checked)}. 아래 자료의 일반 원리를 한국어로 설명하고 학습용 사례를 구성했습니다. 일봉→4시간봉→1시간봉→15분봉→5분봉 전체 체인을 특정 기관이 그대로 검증한 것은 아닙니다. 외환·주식·선물 자료를 가상자산의 실거래 규칙으로 그대로 옮기지 마세요.</p>${EXT_NOTE}<ul class="tf-sources">${G.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><p class="muted">${esc(s.scope)}</p></li>`).join('')}</ul><p class="small-print">기술적 분석은 미래를 확정하지 못합니다. 본문과 그림은 교육용이며, 거래소 화면·상품·비용·마감 기준은 실제 사용 시 별도로 확인해야 합니다.</p></div></details>
+      <details class="card"><summary>공식 교육 자료와 이 가이드의 범위</summary><div class="tf-details-body"><p class="muted">확인 ${esc(G.checked)}. 아래 자료의 일반 원리를 한국어로 설명하고 학습용 사례를 구성했습니다. 일봉→4시간봉→1시간봉→15분봉→5분봉 전체 체인을 특정 기관이 그대로 검증한 것은 아닙니다. 외환·주식·선물 자료를 가상자산의 실거래 규칙으로 그대로 옮기지 마세요.</p>${EXT_NOTE}<ul class="tf-sources">${G.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a><p class="muted">${esc(s.scope)}</p></li>`).join('')}</ul><p class="small-print">기술적 분석은 미래를 확정하지 못합니다. 본문과 그림은 교육용이며, 거래소 화면·상품·비용·마감 기준은 실제 사용 시 별도로 확인해야 합니다.</p></div></details>
       <div class="row"><a class="big-btn ghost" href="#lesson/read-chart">차트 기초</a><a class="big-btn ghost" href="#lesson/trendline">추세선·구조</a></div><a class="big-btn" href="#learn">배우기 목록으로 돌아가기</a>
     `;
     const showRole = id => {
@@ -839,7 +839,7 @@
       ${s.id === '14' ? '<a class="big-btn secondary" href="#timeframes">시간봉 차이와 큰 흐름 가이드</a>' : ''}
       ${s.guide ? '<details class="card mock-details"><summary>학습용 모형 화면 보기 (공식 화면 아님)</summary><div id="shot"></div></details>' : ''}
       <div class="notice bad"><strong><span aria-hidden="true">⚠</span> 주의</strong>${esc(s.caution || '')}</div>
-      ${(s.verified || (s.sources || []).length) ? `<div class="small-print step-sources">${s.verified ? `<p>확인 상태: ${esc(s.verified)}${s.verified === '미확인' ? ' — 현재 앱 화면의 일부(버튼 이름·메뉴 경로 등)를 확인하지 못했습니다.' : ''}</p>` : ''}${(s.sources || []).length ? `<p>참고 자료: ${s.sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">공식 문서${s.sources.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ')}</p>${s.guide ? '' : EXT_NOTE}` : ''}</div>` : ''}
+      ${(s.verified || (s.sources || []).length) ? `<div class="small-print step-sources">${s.verified ? `<p>확인 상태: ${esc(s.verified)}${s.verified === '미확인' ? ' — 현재 앱 화면의 일부(버튼 이름·메뉴 경로 등)를 확인하지 못했습니다.' : ''}</p>` : ''}${(s.sources || []).length ? `<p>참고 자료: ${s.sources.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">공식 문서${s.sources.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ')}</p>${s.guide ? '' : EXT_NOTE}` : ''}</div>` : ''}
       <button class="big-btn ${S.bnb[s.id] ? 'ok' : 'accent'}" type="button" data-act="done">${S.bnb[s.id] ? '✓ 이해했어요 (확인됨)' : '이 화면 이해했어요'}</button>
       <div class="step-nav">${idx > 0 ? `<a class="big-btn secondary" href="#binance/${idx - 1}">‹ 이전</a>` : '<span style="flex:1"></span>'}${idx < STEPS.length - 1 ? `<a class="big-btn" href="#binance/${idx + 1}">다음 ›</a>` : '<a class="big-btn" href="#binance">목록으로</a>'}</div>
     `;
@@ -1060,7 +1060,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=20260929dev1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=21d5e6d772' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
@@ -1105,5 +1105,5 @@
   route();
 
   // ---------- PWA ----------
-  // Standalone public build: no service worker or network font dependency.
+  // 설치용 최소 서비스워커(sw.js, 캐시 안 함)만 쓰고, 바깥 글꼴은 불러오지 않는다.
 })();
