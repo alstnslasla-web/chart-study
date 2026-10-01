@@ -904,6 +904,7 @@
     setTop('지표 모의 연습', '#home');
     if (!SIM.series.length) newRound();
     view.innerHTML = html`
+      <div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표(GOYA·Smart·Premium)와 신호를 겹쳐 보며 진입과 청산을 직접 선택하세요.</p><a class="big-btn" href="goya/manual-replay.html${window.cbFrameHash || ''}">실제 차트 재생 연습 열기 →</a></div>
       <div class="notice"><strong>교육용 예시 지표로 연습 중</strong>지금은 파란 선(9봉 평균)이 주황 선(21봉 평균)을 위로 넘고 RSI가 50 위면 ▲ 롱 후보, 반대면 ▼ 숏 후보로 표시합니다. <b>이 신호는 투자 조언이나 미래 수익 예측이 아닙니다.</b> 가상 캔들이며 실제 시세가 아닙니다.</div>
       <div class="sim-wrap">
         <canvas id="sim-c" class="sim-canvas" role="img" aria-label="가상 캔들과 9봉·21봉 평균선"></canvas>
@@ -1060,7 +1061,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=21d5e6d772' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=b3fcc1fdf5' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;

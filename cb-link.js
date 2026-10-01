@@ -1,11 +1,11 @@
 /* 차트 배움터 링크 전용판 로더.
    내용·자료 파일은 암호화되어 있고, 열쇠는 공유 링크(?k=...)에만 들어 있다.
    열쇠는 이 기기 브라우저에만 저장되며 서버로 따로 보내지 않는다.
-   data-mode: parent(배움터 본체) · frame(goya/index.html 모의연습) · lab(goya/entry-lab.html 진입 조합 연구실) */
+   data-mode: parent(배움터 본체) · frame(goya/index.html 모의연습) · lab(goya/entry-lab.html 진입 조합 연구실) · replay(goya/manual-replay.html 수동 재생) */
 (function () {
   'use strict';
-  var BUILD = "21d5e6d772";
-  var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js","data/goya-summary.js"],"parentCode":["app.js","shared/motion.js","premium.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","ticker-search.js","ui.js","../shared/motion.js","premium.js"],"lab":["goya/data/catalog.js"],"labCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","entry-lab-engine.js","entry-lab-timeline.js","ticker-search.js","bb-execution.js","entry-lab-ui.js"]};
+  var BUILD = "b3fcc1fdf5";
+  var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js","data/goya-summary.js"],"parentCode":["app.js","shared/motion.js","premium.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","ticker-search.js","ui.js","../shared/motion.js","premium.js"],"lab":["goya/data/catalog.js"],"labCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","entry-lab-engine.js","entry-lab-timeline.js","ticker-search.js","bb-execution.js","entry-lab-ui.js"],"replay":[],"replayCode":["manual-replay-model.js","manual-replay-ui.js"]};
   var KEY_STORE = 'cb:link-key';
   var me = document.currentScript;
   var MODE = (me && me.getAttribute('data-mode')) || 'parent';
@@ -151,15 +151,18 @@
     var bytesFor = function (src) { return fetchBytes(src + '.bin').then(function (b) { return decrypt(secret, 'goya/' + src, b); }); };
     window.cbLoadScript = function (src) { return bytesFor(src).then(function (text) { return runText(text, 'goya/' + src); }); };
     window.cbLoadJSON = function (src) { return bytesFor(src); }; // 원본 파일 바이트(Uint8Array) 그대로 — 연구실이 SHA-256 을 대조한다
-    if (MODE === 'lab') {
+    window.cbFrameHash = '#k=' + secret;
+    if (MODE === 'lab' || MODE === 'replay') {
       // 연구실에서 모의연습으로 돌아가는 링크에도 열쇠를 남긴다(저장소가 막힌 브라우저·홈 화면 앱 대비). 이 로더는 <head>에서 돌므로 본문이 생긴 뒤 붙인다.
-      var fixBack = function () { var back = document.getElementById('lab-back'); if (back) back.setAttribute('href', '../index.html?k=' + encodeURIComponent(secret) + '#sim'); };
+      var fixBack = function () { var back = MODE === 'replay' ? document.querySelector('#replay-back, a.back') : document.getElementById('lab-back'); if (back) back.setAttribute('href', MODE === 'replay' ? 'index.html#k=' + encodeURIComponent(secret) : '../index.html?k=' + encodeURIComponent(secret) + '#sim'); };
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fixBack, { once: true }); else fixBack();
     }
-    var data = MODE === 'lab' ? PLAN.lab : PLAN.frame, code = MODE === 'lab' ? PLAN.labCode : PLAN.frameCode;
+    var data = PLAN[MODE], code = PLAN[MODE + 'Code'];
+    if (!Array.isArray(data) || !Array.isArray(code)) { gate('badkey'); return; }
     fetchBytes('../check.bin').then(function (b) { return decrypt(secret, 'check', b); })
       .then(function () { return loadEncrypted(secret, data); })
       .then(function () { return loadCodes(code); })
+      .then(ungate)
       .catch(fail);
   }
 })();
