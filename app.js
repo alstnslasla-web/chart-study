@@ -608,6 +608,53 @@
   }
 
   // ---------- 바이낸스 ----------
+  // BINANCE_REAL_ADAPTER_V1_BEGIN
+  const binanceRealAppURL = document.currentScript && document.currentScript.src;
+  let binanceRealRuntimePromise = null;
+  function loadBinanceRealRuntime() {
+    if (window.BinanceRealRuntime && typeof window.BinanceRealRuntime.mount === 'function') return Promise.resolve();
+    if (!binanceRealRuntimePromise) binanceRealRuntimePromise = new Promise((resolve, reject) => {
+      let url;
+      try {
+        if (!binanceRealAppURL) throw new Error('resource');
+        url = new URL('binance-real-runtime.js', binanceRealAppURL);
+        if (url.origin !== location.origin || !/^https?:$/.test(url.protocol)) throw new Error('resource');
+      } catch (_) { reject(new Error('resource')); return; }
+      const script = document.createElement('script');
+      script.src = url.href; script.async = true;
+      const timer = setTimeout(() => finish(false), 25000);
+      function finish(ok) {
+        clearTimeout(timer); script.onload = script.onerror = null;
+        if (!ok) script.remove();
+        if (ok && window.BinanceRealRuntime && typeof window.BinanceRealRuntime.mount === 'function') resolve();
+        else reject(new Error('resource'));
+      }
+      script.onload = () => finish(true); script.onerror = () => finish(false);
+      document.head.appendChild(script);
+    }).catch(() => { binanceRealRuntimePromise = null; throw new Error('resource'); });
+    return binanceRealRuntimePromise;
+  }
+  function renderBinanceRealRoute(slug) {
+    setTop('바이낸스 실제 화면 안내', '#binance');
+    const host = document.createElement('div'); host.id = 'binance-real-root';
+    view.replaceChildren(host);
+    function start() {
+      if (!host.isConnected) return;
+      host.replaceChildren();
+      const p = document.createElement('p'); p.setAttribute('role', 'status'); p.textContent = '실제 화면 안내를 불러오는 중입니다.'; host.appendChild(p);
+      loadBinanceRealRuntime().then(() => {
+        if (host.isConnected) window.BinanceRealRuntime.mount(host, {lessonSlug: slug || ''});
+      }).catch(() => {
+        if (!host.isConnected) return;
+        p.setAttribute('role', 'alert'); p.textContent = '안내를 열지 못했습니다. 기존 학습은 그대로 이용할 수 있습니다.';
+        const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'big-btn'; retry.textContent = '다시 시도'; retry.addEventListener('click', start); host.appendChild(retry);
+      });
+      const back = document.createElement('a'); back.href = '#binance'; back.className = 'big-btn ghost'; back.textContent = '기존 31단계로 돌아가기'; host.appendChild(back);
+    }
+    start();
+  }
+  // BINANCE_REAL_ADAPTER_V1_END
+
   function renderBinance() {
     setTop('바이낸스 선물 앱', '#home');
     const phases = [];
@@ -615,6 +662,8 @@
     const doneN = STEPS.filter((s) => S.bnb[s.id]).length;
     view.innerHTML = html`
       <div class="notice bad"><strong>먼저 읽어 주세요</strong>선물은 맡긴 돈을 전부 잃을 수 있습니다. 이 순서는 화면을 익히기 위한 것이고, 실제 주문을 권하는 것이 아닙니다. 모의거래와 소액으로 먼저 연습하세요.</div>
+      <!-- BINANCE_REAL_CARD_V1 -->
+      <div class="card"><h2>실제 화면으로 익히기</h2><p>기존 31단계와 진도는 유지됩니다.</p><a class="big-btn secondary" href="#binance/real">실제 화면 안내 열기</a></div>
       <div class="progress"><i style="width:${Math.round(doneN / Math.max(1, STEPS.length) * 100)}%"></i></div><div class="muted">${doneN} / ${STEPS.length}단계 확인 · ${esc(META.checked || '')}</div>
       <div class="tip">바이낸스 안내는 영문·한글 짝그림으로 비교합니다. 단계 안의 번호를 누르면 설명에 맞는 위치가 강조됩니다. 업비트 8·9단계의 한글 공식 참고 사진은 그대로 볼 수 있습니다.</div>
       <details class="card"><summary style="font-weight:700;cursor:pointer">🇰🇷 한국 이용자가 꼭 알 것 ${META.korea_notes.length}가지</summary><ul style="margin-top:8px">${META.korea_notes.map((n) => `<li style="margin-bottom:6px">${esc(n)}</li>`).join('')}</ul></details>
@@ -1045,7 +1094,7 @@
       case 'timeframes': renderTimeframes(); break;
       case 'lesson': { let id = seg[1] || ''; try { id = decodeURIComponent(id); } catch (_) { id = ''; } renderLesson(id); break; }
       case 'quiz': if (seg[1] === 'play') renderQuizPlay(params); else renderQuizHub(); break;
-      case 'binance': if (seg[1] !== undefined && seg[1] !== '') renderStep(Number(seg[1])); else renderBinance(); break;
+      case 'binance': if (seg[1] === 'real') { let slug = seg[2] || ''; try { slug = decodeURIComponent(slug); } catch (_) { slug = ''; } renderBinanceRealRoute(slug); } else if (seg[1] !== undefined && seg[1] !== '') renderStep(Number(seg[1])); else renderBinance(); break; // BINANCE_REAL_ROUTE_V1
       case 'sim': renderGoyaPractice(); break;
       case 'sim-example': renderSim(); break;
       default: renderHome();

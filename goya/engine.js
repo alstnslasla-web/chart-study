@@ -86,6 +86,8 @@
     while (lastIndex >= 0 && bars[lastIndex].time + HOUR > archiveEnd) lastIndex--;
     if (lastIndex < 0) fail('NO_CLOSED_BARS', '기록 기준 시각까지 마감된 시간봉이 없습니다.');
     var ticker = String(options.ticker || 'UNKNOWN');
+    // light: 일괄 연구용. 중간 스냅숏에서 차트·신호·자산 곡선 복사를 생략한다(계산·결과는 같고 봉 수의 제곱으로 느려지지 않는다). 화면은 쓰지 않는다.
+    var light = options.light === true;
     var settings, index, cash, position, pending, trades, decisions, warnings, finished, finishReason, tradeId, equityCurve;
 
     function cutoff() { return bars[index].time + HOUR; }
@@ -110,7 +112,7 @@
       if (settings.endOfSample !== 'close') return 'unrealized_mark_to_last_close_no_forced_exit';
       return finished && position ? 'unrealized_mark_after_early_stop' : 'closed_at_last_close_with_costs';
     }
-    function snapshot() {
+    function snapshot(full) {
       var current = bars[index], pos = position ? clone(position) : null;
       if (pos) {
         pos.markPrice = current.c; pos.unrealizedPnl = pnl(position, current.c);
@@ -125,8 +127,9 @@
         peak = Math.max(peak, point.equity);
         if (peak > 0) drawdown = Math.max(drawdown, (peak - point.equity) / peak * 100);
       });
-      return clone({ ticker: ticker, index: index, cutoff: cutoff(), bars: bars.slice(0, index + 1),
-        signals: events.filter(function (e) { return e.value.time + HOUR <= cutoff(); }).map(function (e) { return e.value; }),
+      var heavy = !light || full === true;
+      return clone({ ticker: ticker, index: index, cutoff: cutoff(), bars: heavy ? bars.slice(0, index + 1) : [],
+        signals: heavy ? events.filter(function (e) { return e.value.time + HOUR <= cutoff(); }).map(function (e) { return e.value; }) : [],
         current: current, equity: equity(), cash: cash, position: pos, pending: pending,
         trades: trades, decisions: decisions, settings: settings, finished: finished, finishReason: finishReason,
         warnings: warnings, stats: { realizedPnl: realized, unrealizedPnl: pos ? pos.unrealizedPnl : 0,
@@ -134,7 +137,7 @@
           netPnl: equity() - settings.initialBalance, returnPct: (equity() / settings.initialBalance - 1) * 100,
           fees: fees, tradeCount: trades.length, wins: wins, losses: losses,
           winRatePct: trades.length ? wins / trades.length * 100 : null, maxDrawdownPct: drawdown },
-        equityCurve: equityCurve, assumptions: {
+        equityCurve: heavy ? equityCurve : [], assumptions: {
           candleSeconds: HOUR, signalAvailabilityDelaySeconds: HOUR, fills: 'next_open',
           leverage: settings.leverage, fundingModeled: false, intrabarTimeKnown: false,
           simultaneousTpSl: 'stop_first', takeProfitGap: 'limit_price',
@@ -359,7 +362,7 @@
       return snapshot();
     }
     reset(options.startIndex, options.settings);
-    return Object.freeze({ snapshot: snapshot, advance: advance, submit: submit, reset: reset });
+    return Object.freeze({ snapshot: snapshot, fullSnapshot: function () { return snapshot(true); }, advance: advance, submit: submit, reset: reset });
   }
   function runStrategy(options) {
     options = options || {};
@@ -390,6 +393,7 @@
     function observeFrame() { if (typeof options.onFrame === 'function') options.onFrame(clone(Object.assign({}, state, { bars: state.bars.slice(-120), equityCurve: [], warnings: [] }))); }
     consumeVisible(); observeFrame();
     while (!state.finished) { state = engine.advance(); consumeVisible(); observeFrame(); }
+    if (options.light === true) state = engine.fullSnapshot();
     while (cursor < completions.length) {
       var item = completions[cursor++];
       skipped.push({ sourceIndex: item.sourceIndex, completion: item.event,
