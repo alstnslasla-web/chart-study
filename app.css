@@ -620,3 +620,12 @@ html[data-font="XL"] .sim-rsi { height: 116px; }
 .mock-details[open] summary::before{content:'▾'}
 .mock-details summary::-webkit-details-marker{display:none}
 .mock-details > #shot{padding:0 12px 12px}
+
+/* 5부 강의 자료 (2026-10-07) */
+.lecture-fig .lfig-box { width: 100%; background: #f1f1f1; display: flex; align-items: center; justify-content: center; min-height: 120px; }
+.lecture-fig .lfig-box.ready { background: transparent; min-height: 0; aspect-ratio: auto !important; }
+.lecture-fig .lfig-box img { display: block; width: 100%; height: auto; }
+.lecture-fig .lfig-wait { color: var(--ink-2); font-size: .9em; padding: 16px; text-align: center; }
+.section-card .lecture-fig { margin: 14px 0 4px; }
+.lecture-intro p + p { margin-top: 8px; }
+.lecture-link h2 { margin: 8px 0 4px; }

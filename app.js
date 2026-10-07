@@ -56,7 +56,7 @@
     'goya-markers': '학습용 가상 그림입니다. RS·RL 화살표는 원본 화면 모양이며, 앱에서는 둘 다 봉 위 노란 마름모입니다. L2는 원본에서도 봉 아래 초록 화살표지만 이 그림에서는 글자 상자로만 표시했고, 분홍 선은 1시간봉 24개 평균선과 거의 같은 선입니다.', 'goya-two-signals': '학습용 그림입니다. 위는 롱, 아래는 숏입니다. 같은 방향 카드가 서로 다른 종류로 두 가지 이상 모이면 진입 조건이며, 순서는 상관없습니다. 진입을 고르면 다음 봉 시가에 모의 체결됩니다.', 'goya-exit-modes': '학습용 가상 그림입니다. 같은 롱 진입에서 ①과 ②가 언제 정리되는지 비교하세요. ①은 반대 SS가 보인 다음 봉 시가에 정리하고, ②는 반대 방향 진입 조건이 성립할 때까지 들고 있습니다.', 'goya-practice-screen-a': '앱 화면 예시(휴대폰). ① 연습 방식 탭 ② 연습할 코인 ③ 신호 카드 ⑤ 롱·숏·관망 고르기 ⑥ 진행 버튼. 보관된 과거 시세를 모의로 재생한 화면입니다.', 'goya-practice-screen-b': '앱 화면 예시(휴대폰). ④ 차트와 “신호 함께 보기”. 차트 위 상자의 시각은 봉이 시작한 시각이라 카드의 확인 시각보다 한 시간 이릅니다.', 'goya-identity-map': '학습용 정리 그림입니다. 왼쪽은 화면에 보이는 표시, 가운데는 우리 팀이 대조해 확인한 계산식, 오른쪽은 대조 결과입니다. 아래쪽 표시들은 정체를 찾지 못해 보관한 표시를 그대로 씁니다.'
   };
   const IMG = (name) => window.CHART_ASSETS["assets/" + name + ".webp"];
-  const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화', '4부 · 우리 지표 연습'];
+  const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화', '4부 · 우리 지표 연습', '5부 · 강의 자료'];
 
   // ---------- 상태 ----------
   const S = {
@@ -285,6 +285,47 @@
     requestAnimationFrame(drawHeroStrip);
   }
 
+  // ---------- 5부 강의 자료 ----------
+  // 강의 그림(54장, 약 2.3MB)은 앱을 열 때 받지 않고 5부 강을 처음 열 때 한 번만 받는다.
+  // 링크판·APK: cb-link.js 가 준 cbLoadBytes 로 data/lecture-figs.json.bin 을 받아 푼다. 개발 미리보기: 평문 JSON.
+  const LECTURE_INTRO = '<div class="card lecture-intro"><p><strong>차트 그 자체를 읽는 5강</strong> — 보조지표보다 가격과 캔들에 집중합니다. 1강 오더블럭·2강 FVG는 큰 자금이 남긴다고 보는 흔적, 3강 추세선·4강 채널은 시장의 구조, 5강은 돌파처럼 보였다가 돌아오는 함정입니다.</p><p class="muted">기술적 분석은 미래를 예언하는 도구가 아니라, 확률 높은 시나리오와 손절 기준을 세우는 도구입니다. 1~3부를 먼저 읽으면 이해가 쉽습니다.</p></div>';
+  const LECTURE_NOTICE = '<div class="notice"><strong>강의 자료 요약</strong>이 강은 받은 강의 자료를 쉬운 말로 줄인 것입니다. "스마트 머니가 ~한다"는 설명은 강의 작성자의 해석이며, 차트만으로 실제 주문이나 의도를 확인할 수는 없습니다(24강). 규칙은 연습용 기준이고 수익을 보장하지 않습니다. 실제 돈을 넣기 전에 모의연습으로 먼저 확인하세요.</div>';
+  const LECTURE_LINK = { 'trendline': 'lec-trendline', 'draw-lines': 'lec-trendline', 'channels': 'lec-channel', 'support': 'lec-fakeout', 'triangles': 'lec-fakeout', 'ob-fvg': 'lec-orderblock' };
+  const lectureFigCount = (L) => (L.sections || []).reduce((n, s) => n + (s.figs || []).length, 0);
+  function lectureFigureHtml(f) {
+    const ratio = f.w && f.h ? `aspect-ratio:${f.w}/${f.h}` : '';
+    return `<figure class="figure lecture-fig" data-lfig="${esc(f.id)}"><div class="lfig-box" style="${ratio}"><span class="lfig-wait">그림을 불러오는 중입니다…</span></div><figcaption><span>${esc(f.cap || '')} · 강의 자료 그림</span><button class="zoom-btn" type="button" disabled><span aria-hidden="true">🔍</span> 크게</button></figcaption></figure>`;
+  }
+  let lectureFigsPromise = null;
+  function loadLectureFigs() {
+    if (!lectureFigsPromise) {
+      const bytes = typeof window.cbLoadBytes === 'function'
+        ? window.cbLoadBytes('data/lecture-figs.json')
+        : fetch('data/lecture-figs.json', { cache: 'no-cache' }).then((r) => { if (!r.ok) throw new Error('resource'); return r.arrayBuffer(); }).then((b) => new Uint8Array(b));
+      lectureFigsPromise = bytes.then((b) => JSON.parse(new TextDecoder('utf-8').decode(b)))
+        .then((d) => { if (!d || typeof d.figs !== 'object') throw new Error('data'); return d.figs; })
+        .catch((e) => { lectureFigsPromise = null; throw e; });
+    }
+    return lectureFigsPromise;
+  }
+  function hydrateLectureFigs(root) {
+    const list = Array.from(root.querySelectorAll('[data-lfig]'));
+    if (!list.length) return;
+    loadLectureFigs().then((figs) => {
+      list.forEach((fig) => {
+        const src = figs[fig.dataset.lfig], box = fig.querySelector('.lfig-box'), btn = fig.querySelector('.zoom-btn');
+        if (!src || !box || !fig.isConnected) return;
+        const img = document.createElement('img');
+        img.src = src; img.alt = (fig.querySelector('figcaption span') || {}).textContent || '강의 자료 그림';
+        img.loading = 'lazy'; img.dataset.zoom = src;
+        box.replaceChildren(img); box.classList.add('ready');
+        if (btn) { btn.disabled = false; btn.dataset.zoom = src; }
+      });
+    }).catch(() => {
+      list.forEach((fig) => { const w = fig.querySelector('.lfig-wait'); if (w) w.textContent = '그림을 불러오지 못했습니다. 연결을 확인한 뒤 이 강을 다시 열어 주세요. 글은 그대로 읽을 수 있습니다.'; });
+    });
+  }
+
   // ---------- 배우기 ----------
   function renderLearn() {
     setTop('차트 배우기', '#home');
@@ -292,9 +333,9 @@
     PARTS.forEach((p, pi) => {
       const items = COURSE.map((L, i) => ({ L, i })).filter(({ L }) => partOf(L) === pi);
       if (!items.length) return;
-      out += `<h2 class="part-head">${esc(p)}${pi === 2 ? ' <span class="badge">나중에 읽어도 됨</span>' : ''}${pi === 3 ? ' <span class="badge">모의연습과 함께</span>' : ''}</h2><ul class="lesson-list">`;
+      out += `<h2 class="part-head">${esc(p)}${pi === 2 ? ' <span class="badge">나중에 읽어도 됨</span>' : ''}${pi === 3 ? ' <span class="badge">모의연습과 함께</span>' : ''}${pi === 4 ? ' <span class="badge">강의 원문 요약</span>' : ''}</h2>${pi === 4 ? LECTURE_INTRO : ''}<ul class="lesson-list">`;
       items.forEach(({ L, i }) => {
-        out += `<li><a class="lesson-item ${S.done[L.id] ? 'done' : ''}" href="#lesson/${esc(L.id)}"><span class="num">${S.done[L.id] ? '✓' : pad2(i + 1)}</span><span><div class="t">${esc(L.title)}</div><div class="s">${esc(L.subtitle || '')}${FIG[L.id] ? ' · 🖼 그림' : ''}</div></span><span class="chev">›</span></a></li>`;
+        out += `<li><a class="lesson-item ${S.done[L.id] ? 'done' : ''}" href="#lesson/${esc(L.id)}"><span class="num">${S.done[L.id] ? '✓' : pad2(i + 1)}</span><span><div class="t">${esc(L.title)}</div><div class="s">${esc(L.subtitle || '')}${FIG[L.id] || lectureFigCount(L) ? ' · 🖼 그림' + (lectureFigCount(L) ? ' ' + lectureFigCount(L) + '장' : '') : ''}</div></span><span class="chev">›</span></a></li>`;
       });
       out += '</ul>';
       if (!teaser) { out += timeframeTeaser(); teaser = true; } // 1부 목록 바로 뒤(2부 제목 앞)에 시간봉 가이드
@@ -323,9 +364,11 @@
       ${(FIG_EXTRA[id] || []).map((name) => figureHtml(name)).join('')}
       ${['read-chart', 'trendline', 'plan-exits'].includes(id) ? timeframeTeaser() : ''}
       ${(L.objectives || []).length ? `<div class="card"><h2>이 강에서 익힐 것</h2><ul>${L.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}
-      ${(L.sections || []).map((s) => `<div class="card section-card"><h2>${esc(s.heading)}</h2><p>${esc(s.body)}</p></div>`).join('')}
+      ${partOf(L) === 4 ? LECTURE_NOTICE : ''}
+      ${(L.sections || []).map((s) => `<div class="card section-card"><h2>${esc(s.heading)}</h2><p>${esc(s.body).replace(/\n/g, '<br>')}</p>${(s.figs || []).map(lectureFigureHtml).join('')}</div>`).join('')}
+      ${LECTURE_LINK[id] ? `<a class="card lift lecture-link" href="#lesson/${LECTURE_LINK[id]}"><span class="badge">5부 강의 자료</span><h2>${esc((lessonOf(LECTURE_LINK[id]) || {}).title || '')}</h2><p>같은 주제를 강의 자료의 그림과 진입·손절·익절 기준으로 더 자세히 봅니다.</p></a>` : ''}
       ${(L.checklist || []).length ? `<div class="card"><h2>스스로 확인하기</h2><ul class="check-list">${L.checklist.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
-      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary>${EXT_NOTE}<ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
+      ${(L.sources || []).length ? `<details class="card"><summary style="font-weight:700;cursor:pointer">참고 출처 ${L.sources.length}개</summary>${EXT_NOTE}<ul class="small-print" style="margin-top:8px">${L.sources.map((s) => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a></li>`).join('')}</ul></details>` : partOf(L) === 4 ? '' : partOf(L) === 3 ? `<div class="notice"><strong>자체 분석</strong>이 강의 규칙과 숫자는 우리 모의연습 자료(한 달 보관 기록)를 분석한 것입니다. 외부 공식 출처가 아니며 미래 수익을 뜻하지 않습니다.</div>` : `<div class="notice"><strong>참고 출처 없음</strong>이 강의 용어는 제공자마다 정의가 다를 수 있어 공식 출처를 연결하지 않았습니다.</div>`}
       ${partOf(L) === 3 ? '<a class="big-btn" href="#sim"><span aria-hidden="true">📈</span> 지표 모의연습에서 직접 해보기</a>' : ''}
       <a class="big-btn accent" href="#quiz/play?mode=lesson&id=${esc(id)}"><span aria-hidden="true">🎯</span> 이 강 문제 풀기 (${qN}문제)</a>
       <button class="big-btn ${S.done[id] ? 'ok' : 'secondary'}" type="button" data-act="done">${S.done[id] ? '✓ 다 읽었어요 (완료)' : '다 읽었어요'}</button>
@@ -335,6 +378,7 @@
       </div>
     `;
     $('[data-act="done"]', view).addEventListener('click', () => { S.done[id] = !S.done[id]; save(); renderLesson(id); if (S.done[id]) toast('완료! 잘하셨어요'); });
+    hydrateLectureFigs(view);
     view.scrollTop = 0; window.scrollTo(0, 0);
   }
 
@@ -1061,7 +1105,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=25f2a73098' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=d5e258b018' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;

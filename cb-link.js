@@ -4,7 +4,7 @@
    data-mode: parent(배움터 본체) · frame(goya/index.html 모의연습) · lab(goya/entry-lab.html 진입 조합 연구실) · replay(goya/manual-replay.html 수동 재생) */
 (function () {
   'use strict';
-  var BUILD = "25f2a73098";
+  var BUILD = "d5e258b018";
   var PLAN = {"parent":["data/embedded-assets.js","data/course.js","data/quiz-extra.js","data/binance-steps.js","data/shots.js","data/binance-verified.js","data/upbit-guide.js","data/timeframes.js","data/binance-bilingual.js","data/goya-summary.js"],"parentCode":["app.js","shared/motion.js","premium.js"],"frame":["goya/data/catalog.js","goya/data/cases-index.js"],"frameCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","ticker-search.js","ui.js","../shared/motion.js","premium.js"],"lab":["goya/data/catalog.js"],"labCode":["engine.js","signal-sequence.js","scenarios.js","month-timeline.js","month-replay.js","entry-lab-engine.js","entry-lab-timeline.js","ticker-search.js","bb-execution.js","entry-lab-ui.js"],"replay":[],"replayCode":["manual-replay-model.js","manual-replay-ui.js"]};
   var KEY_STORE = 'cb:link-key';
   var me = document.currentScript;
@@ -133,6 +133,8 @@
     try { var here = new URL(location.href); if (here.searchParams.get('k') !== secret) { here.searchParams.set('k', secret); history.replaceState(history.state, '', here.toString()); } } catch (e) {}
     // 모의연습 iframe 도 같은 열쇠로 열리도록(저장소가 막힌 브라우저 대비) 조각 주소로 넘긴다.
     window.cbFrameHash = '#k=' + secret;
+    // 시작 때 받지 않는 선택 자료(5부 강의 그림 등)를 화면이 필요할 때 받아 푼다. rel 은 링크판 루트 기준 경로. 원본 바이트(Uint8Array)를 돌려준다.
+    window.cbLoadBytes = function (rel) { return fetchBytes(rel + '.bin').then(function (b) { return decrypt(secret, rel, b); }); };
     fetchBytes('check.bin').then(function (b) { return decrypt(secret, 'check', b); })
       .then(function () { return loadEncrypted(secret, PLAN.parent); })
       .then(function () { return loadCodes(PLAN.parentCode); })
