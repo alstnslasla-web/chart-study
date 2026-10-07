@@ -1061,7 +1061,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=b3fcc1fdf5' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=25f2a73098' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
