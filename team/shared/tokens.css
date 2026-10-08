@@ -1,0 +1,45 @@
+:root {
+  --ex-font: "Segoe UI", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  --ex-bg: #f5f3ee;
+  --ex-surface: #fffefa;
+  --ex-surface-raised: #ffffff;
+  --ex-text: #202c36;
+  --ex-muted: #596570;
+  --ex-line: #dddcd4;
+  --ex-accent: #e5a54a;
+  --ex-accent-strong: #80500f;
+  --ex-accent-soft: #faecd4;
+  --ex-chart: #111920;
+  --ex-radius: 18px;
+  --ex-radius-small: 10px;
+  --ex-shadow: 0 8px 28px rgb(48 41 25 / 5%);
+  --ex-ease: cubic-bezier(.22, .75, .3, 1);
+}
+[data-ex-theme="dark"] {
+  --ex-bg: #11181f;
+  --ex-surface: #18222b;
+  --ex-surface-raised: #202c36;
+  --ex-text: #f3f5f7;
+  --ex-muted: #afbcc7;
+  --ex-line: #35434f;
+  --ex-accent-strong: #f1bd72;
+  --ex-accent-soft: #392d1d;
+  color-scheme: dark;
+}
+[data-ex-theme="light"] { color-scheme: light; }
+[data-ex-theme] :is(button, a, input, select, summary):focus-visible {
+  outline: 3px solid #a36a1b;
+  outline-offset: 4px;
+}
+[data-ex-theme] :is(button, a, select) {
+  -webkit-tap-highlight-color: rgb(229 165 74 / 14%);
+}
+[data-ex-theme] :is(button, .ex-motion-control):not(:disabled) {
+  transition: color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms, transform 150ms var(--ex-ease);
+}
+[data-ex-theme] button:not(:disabled):active { transform: translateY(1px); }
+.ex-number { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
