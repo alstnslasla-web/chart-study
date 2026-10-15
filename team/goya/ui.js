@@ -140,9 +140,11 @@
   }
   function updateTickerOptions() {
     const selected = $('ticker').value || state.ticker;
+    const last = lastArchiveDate(window.GOYA_SIM_CATALOG);
     $('ticker').innerHTML = window.GOYA_SIM_CATALOG.symbols.map(item => {
       const count = caseCount(item.ticker);
-      return '<option value="' + escape(item.ticker) + '">' + escape(item.ticker) + ' · ' + (count ? '사례 ' + count : '사례 없음') + '</option>';
+      const until = last && item.lastArchive && item.lastArchive !== last ? ' · ' + shortDate(item.lastArchive) + '까지' : '';
+      return '<option value="' + escape(item.ticker) + '">' + escape(item.ticker) + ' · ' + (count ? '사례 ' + count : '사례 없음') + until + '</option>';
     }).join('');
     $('ticker').value = selected;
   }
@@ -289,13 +291,18 @@
   const bpsPct = bps => String(Number((Number(bps) / 100).toFixed(4)));
   const dataVersion = () => (window.GOYA_SIM_CATALOG && window.GOYA_SIM_CATALOG.version) || '';
   // 자료 출처 줄: 여러 번 받은 기록을 이어 붙인 사실(받은 횟수), 뒤 기록에 없는 종목, 자료판 이름.
+  const shortDate = d => d.replace(/^\d{4}-0?/, '').replace(/-0?/, '/');
+  const lastArchiveDate = catalog => { const a = catalog && Array.isArray(catalog.archives) ? catalog.archives : []; return a.length ? a[a.length - 1].date : ''; };
+  // 마지막 기록에 없는 종목: 몇 개뿐이면 이름을, 많으면(2026-10-15: 10/15 기록은 268종목만 받음) 날짜별 종목 수를 적는다.
   function archiveNote(catalog) {
     const dates = Array.isArray(catalog.archives) ? catalog.archives.map(a => a && a.date).filter(Boolean) : [];
-    const short = d => d.replace(/^\d{4}-0?/, '').replace(/-0?/, '/');
     const last = dates[dates.length - 1];
     const older = last ? catalog.symbols.filter(item => item.lastArchive && item.lastArchive !== last) : [];
-    return (dates.length > 1 ? ' ' + dates.map(short).join('·') + ' ' + dates.length + '번 받은 기록을 이어 붙였습니다(앞부분은 그대로 두고 뒷부분만 더함).' : '')
-      + (older.length ? ' ' + older.map(item => item.ticker + '(' + short(item.lastArchive) + '까지)').join(', ') + '은 뒤 기록에 없어 그때까지만 있습니다.' : '')
+    const groups = {};
+    older.forEach(item => { (groups[item.lastArchive] = groups[item.lastArchive] || []).push(item.ticker); });
+    const olderText = Object.keys(groups).sort().map(d => (groups[d].length > 5 ? groups[d].length + '종목' : groups[d].join(', ')) + '(' + shortDate(d) + '까지)').join(' · ');
+    return (dates.length > 1 ? ' ' + dates.map(shortDate).join('·') + ' ' + dates.length + '번 받은 기록을 이어 붙였습니다(앞부분은 그대로 두고 뒷부분만 더함).' : '')
+      + (olderText ? ' ' + olderText + '은 뒤 기록에 없어 그때까지만 있습니다(종목 고르기 칸에 표시).' : '')
       + (catalog.version ? ' 자료판 ' + catalog.version + '.' : '');
   }
   function costText(settings) { return '수수료 편도 ' + bpsPct(settings.feeBps) + '% · 슬리피지 편도 ' + bpsPct(settings.slippageBps) + '%'; }
