@@ -57,6 +57,9 @@
   };
   const IMG = (name) => window.CHART_ASSETS["assets/" + name + ".webp"];
   const PARTS = ['1부 · 처음부터', '2부 · 차근차근', '3부 · 선택 심화', '4부 · 우리 지표 연습', '5부 · 강의 자료'];
+  // 첫걸음 그림 교재(2026-10-22 사용자: 왕왕초보는 시작 전에 필수로 보고 시작, 왕초보가 아니면 건너뛰기).
+  // 그림교육서/카드그림 118장 → tools/make_primer_cards.py → data/primer/NNN.webp. 부 나눔은 그림교육서/README 의 구성 표와 같다.
+  const PRIMER = { count: 118, parts: [['시작', 1, 4], ['1부 캔들', 5, 31], ['2부 흐름', 32, 48], ['3부 선 긋기', 49, 70], ['4부 강의 말', 71, 95], ['5부 내 돈 지키기', 96, 112], ['6부 매일 복습', 113, 118]] };
 
   // ---------- 상태 ----------
   const S = {
@@ -80,6 +83,13 @@
   S.sim.games = S.sim.wins + S.sim.losses + S.sim.waits;
   S.sim.best = Math.max(S.sim.best, S.sim.score);
   const save = () => { store.set('settings', S.settings); store.set('done', S.done); store.set('quiz', S.quiz); store.set('bnb', S.bnb); store.set('sim', S.sim); };
+  // 교재 기록: choice(beginner 처음이에요 / skip 건너뛰기), seen(가장 멀리 본 카드), at(마지막으로 본 카드), done(이수 완료). 따로 저장한다.
+  S.primer = (() => {
+    const p = store.get('primer', {}), card = (v, lo) => Number.isSafeInteger(v) && v >= lo && v <= PRIMER.count ? v : null;
+    return { choice: ['beginner', 'skip'].includes(p.choice) ? p.choice : null, seen: card(p.seen, 0) ?? 0, at: card(p.at, 1) ?? 1, done: p.done === true };
+  })();
+  const savePrimer = () => store.set('primer', S.primer);
+  const primerBlocked = () => !S.primer.choice || (S.primer.choice === 'beginner' && !S.primer.done);
   document.documentElement.dataset.font = S.settings.font || 'L';
 
   // ---------- 문제 은행 ----------
@@ -254,6 +264,7 @@
         <canvas id="hero-strip" aria-hidden="true"></canvas>
       </section>
       ${accessHelp()}
+      ${primerHomeCard()}
       <nav class="path" aria-label="학습 순서">
         <a href="#learn"><b>1</b>배우기</a><a href="#quiz"><b>2</b>문제</a><a href="#binance"><b>3</b>바이낸스</a><a href="#sim"><b>4</b>연습</a>
       </nav>
@@ -284,6 +295,136 @@
     bindAccessHelp(view);
     requestAnimationFrame(drawHeroStrip);
   }
+
+  // ---------- 첫걸음 그림 교재 ----------
+  // 링크판·APK: 카드는 한 장씩 암호화되어 있어(build_link.cjs) 보는 카드와 바로 다음 카드만 cbLoadBytes 로 받는다. 개발 미리보기: 평문 파일.
+  const primerFile = (n) => 'data/primer/' + String(n).padStart(3, '0') + '.webp';
+  const primerUrls = new Map();
+  function primerSrc(n) {
+    if (typeof window.cbLoadBytes !== 'function') return Promise.resolve(primerFile(n));
+    if (!primerUrls.has(n)) primerUrls.set(n, window.cbLoadBytes(primerFile(n)).then((b) => URL.createObjectURL(new Blob([b], { type: 'image/webp' }))).catch((e) => { primerUrls.delete(n); throw e; }));
+    return primerUrls.get(n);
+  }
+  const primerPart = (n) => PRIMER.parts.find(([, a, b]) => n >= a && n <= b) || PRIMER.parts[0];
+  const primerResume = () => S.primer.seen ? Math.min(PRIMER.count, S.primer.at) : 1; // 마지막으로 보던 카드에서 다시 시작
+  // 처음인 분(choice=beginner, 미이수)은 차례대로만 본다. 이미 본 카드까지와 바로 다음 카드만 열린다.
+  const primerStrict = () => S.primer.choice === 'beginner' && !S.primer.done;
+  function showPrimerCard(img, n, wait) {
+    primerSrc(n).then((src) => { if (!img.isConnected) return; img.src = src; img.hidden = false; if (img.classList.contains('primer-card')) img.dataset.zoom = src; if (wait) wait.remove(); })
+      .catch(() => { if (wait && wait.isConnected) wait.textContent = '카드를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 열어 주세요.'; });
+  }
+  function primerHomeCard() {
+    const p = S.primer;
+    const foot = p.done ? '<span class="badge ok">이수 완료</span><span>언제든 다시 보기</span>'
+      : `<span class="badge">${p.seen} / ${PRIMER.count}장</span><span>${p.choice === 'skip' ? '건너뛰었어요 · 필요할 때 보기' : '처음이신 분 필수'}</span>`;
+    return `<a class="card lift module-card primer-home" href="#primer/${primerResume()}">
+        <div class="mod-head"><div class="mod-ico" aria-hidden="true">🧭</div><div><div class="mod-title">첫걸음 그림 교재</div><div class="mod-sub">그림 카드 ${PRIMER.count}장 · 캔들 보는 법부터 내 돈 지키기까지 · 하루 5분</div></div></div>
+        ${ring(p.seen / PRIMER.count, '교재 진도')}
+        <div class="mod-foot">${foot}</div>
+      </a>`;
+  }
+  // 첫 화면 관문: 처음 고르기(처음이에요 / 조금 알아요), 처음이에요를 골랐으면 이수할 때까지 이어 보기 안내.
+  function renderPrimerGate() {
+    setTop('차트 배움터', null);
+    const p = S.primer;
+    if (p.choice === 'beginner') {
+      const pct = Math.round(p.seen / PRIMER.count * 100), resume = primerResume();
+      view.innerHTML = `<section class="card primer-gate" aria-labelledby="pg-title">
+          <p class="eyebrow">첫걸음 그림 교재</p>
+          <h2 id="pg-title">교재를 먼저 끝까지 봐 주세요</h2>
+          <p>처음 시작하는 분은 그림 카드 ${PRIMER.count}장을 다 본 뒤에 강의·문제·연습이 열립니다. 본 곳까지 저장되어 있으니 나눠서 보셔도 됩니다.</p>
+          <div class="primer-meter" role="img" aria-label="${PRIMER.count}장 중 ${p.seen}장 봄"><i style="width:${pct}%"></i></div>
+          <p class="primer-count"><b>${p.seen}</b> / ${PRIMER.count}장 봤어요</p>
+          <a class="big-btn accent" href="#primer/${resume}">${p.seen ? resume + '번째 카드부터 이어 보기' : '첫 카드부터 보기'}</a>
+          <div class="primer-skip">
+            <button type="button" class="linkish" data-act="primer-skip-ask" aria-expanded="false">차트를 이미 아는 분은 건너뛰기</button>
+            <div class="primer-skip-confirm" hidden>
+              <p>건너뛰면 바로 강의와 연습을 시작합니다. 교재는 홈에서 언제든 다시 볼 수 있어요.</p>
+              <button type="button" class="big-btn secondary" data-act="primer-skip">네, 건너뛸게요</button>
+            </div>
+          </div>
+        </section>`;
+    } else {
+      view.innerHTML = `<section class="card primer-gate first" aria-labelledby="pg-title">
+          <div class="primer-cover"><img alt="첫걸음 그림 교재 표지" hidden><span class="primer-wait">표지를 불러오는 중입니다…</span></div>
+          <p class="eyebrow">시작하기 전에</p>
+          <h2 id="pg-title">차트를 처음 보시나요?</h2>
+          <p>캔들을 처음 보는 분을 위해 그림 카드 ${PRIMER.count}장으로 된 <b>첫걸음 그림 교재</b>를 준비했어요. 카드 한 장에 한 가지씩, 하루 5분이면 됩니다.</p>
+          <div class="primer-choice">
+            <button type="button" class="big-btn accent" data-act="primer-begin">네, 처음이에요 · 그림 교재부터</button>
+            <p class="muted">처음이신 분은 교재를 끝까지 본 뒤에 강의·문제·연습이 열립니다.</p>
+            <button type="button" class="big-btn secondary" data-act="primer-skip">아니요, 차트를 조금 알아요 · 건너뛰기</button>
+            <p class="muted">건너뛰어도 교재는 홈에서 언제든 볼 수 있어요.</p>
+          </div>
+        </section>`;
+      const cover = view.querySelector('.primer-cover');
+      showPrimerCard(cover.querySelector('img'), 1, cover.querySelector('.primer-wait'));
+    }
+    view.querySelectorAll('[data-act="primer-begin"]').forEach((b) => b.addEventListener('click', () => {
+      S.primer.choice = 'beginner'; savePrimer(); location.hash = '#primer/' + primerResume();
+    }));
+    view.querySelectorAll('[data-act="primer-skip-ask"]').forEach((b) => b.addEventListener('click', () => {
+      const box = view.querySelector('.primer-skip-confirm'); box.hidden = !box.hidden; b.setAttribute('aria-expanded', String(!box.hidden));
+    }));
+    view.querySelectorAll('[data-act="primer-skip"]').forEach((b) => b.addEventListener('click', () => {
+      S.primer.choice = 'skip'; savePrimer(); toast('건너뛰었어요', '첫걸음 그림 교재는 홈에서 언제든 볼 수 있어요.'); route();
+    }));
+  }
+  function renderPrimer(n) {
+    const p = S.primer;
+    if (!Number.isSafeInteger(n) || n < 1 || n > PRIMER.count) n = primerResume();
+    if (primerStrict() && n > p.seen + 1) n = p.seen + 1; // 아직 안 본 카드로 건너뛰지 않는다
+    p.at = n; p.seen = Math.max(p.seen, n); savePrimer();
+    setTop('첫걸음 그림 교재', '#home');
+    const [partName] = primerPart(n), strict = primerStrict(), last = n === PRIMER.count;
+    const toc = PRIMER.parts.map(([name, a, b]) => {
+      const locked = strict && a > p.seen + 1, read = Math.max(0, Math.min(b, p.seen) - a + 1);
+      return `<li><button type="button" class="primer-toc-item${n >= a && n <= b ? ' here' : ''}" data-goto="${a}" ${locked ? 'disabled' : ''}><span class="t">${esc(name)}</span><span class="s">${a}~${b}번 카드 · ${locked ? '아직 열리지 않았어요' : read >= b - a + 1 ? '다 봤어요' : `${read}/${b - a + 1}장 봄`}</span></button></li>`;
+    }).join('');
+    view.innerHTML = `<div class="primer">
+        <div class="primer-head"><span class="badge">${esc(partName)}</span><span class="primer-pos"><b>${n}</b> / ${PRIMER.count}</span></div>
+        <div class="primer-meter" aria-hidden="true"><i style="width:${(p.seen / PRIMER.count * 100).toFixed(1)}%"></i></div>
+        <div class="primer-stage">
+          <img class="primer-card" alt="첫걸음 그림 교재 ${n}번째 카드 · ${esc(partName)}" hidden>
+          <span class="primer-wait">카드를 불러오는 중입니다…</span>
+          <button type="button" class="primer-toc-hot" data-act="primer-toc" aria-label="차례 보기"></button>
+        </div>
+        <div class="primer-nav">
+          <button type="button" class="big-btn secondary" data-act="primer-prev" ${n === 1 ? 'disabled' : ''}>◀ 이전</button>
+          ${last ? `<button type="button" class="big-btn ok" data-act="primer-finish">${p.done ? '홈으로' : '이수 완료 ✓'}</button>` : '<button type="button" class="big-btn accent" data-act="primer-next">다음 ▶</button>'}
+        </div>
+        <p class="primer-hint">카드를 옆으로 밀어도 넘어가고, 카드를 누르면 크게 볼 수 있어요. 카드 아래 「차례」를 누르면 부를 골라 갈 수 있어요.</p>
+        <section class="card primer-toc" hidden aria-labelledby="primer-toc-title"><h2 id="primer-toc-title">차례</h2>${strict ? '<p class="muted">처음이신 분은 차례대로 봅니다. 본 곳까지만 골라 갈 수 있어요.</p>' : ''}<ul>${toc}</ul></section>
+        ${strict ? '' : '<p class="primer-back"><a href="#home">배움터 홈으로</a></p>'}
+      </div>`;
+    const stage = view.querySelector('.primer-stage');
+    showPrimerCard(stage.querySelector('img'), n, stage.querySelector('.primer-wait'));
+    if (n < PRIMER.count) primerSrc(n + 1).catch(() => {}); // 다음 카드는 미리 받아 둔다
+    const go = (m) => { if (m >= 1 && m <= PRIMER.count) location.replace('#primer/' + m); };
+    view.querySelector('[data-act="primer-prev"]').addEventListener('click', () => go(n - 1));
+    const nextBtn = view.querySelector('[data-act="primer-next"]'); if (nextBtn) nextBtn.addEventListener('click', () => go(n + 1));
+    const finish = view.querySelector('[data-act="primer-finish"]');
+    if (finish) finish.addEventListener('click', () => {
+      const first = !p.done; p.done = true; savePrimer();
+      if (first) toast('첫걸음 교재를 다 봤어요', '이제 강의·문제·연습이 열렸어요. 1부 1강부터 천천히 시작하세요.');
+      location.hash = '#home';
+    });
+    const tocBox = view.querySelector('.primer-toc');
+    view.querySelectorAll('[data-act="primer-toc"]').forEach((b) => b.addEventListener('click', () => { tocBox.hidden = false; tocBox.scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
+    tocBox.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => go(Number(b.dataset.goto))));
+    let sx = null, sy = 0;
+    stage.addEventListener('touchstart', (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+      if (sx === null) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? n + 1 : n - 1);
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if (!location.hash.startsWith('#primer') || e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const n = S.primer.at;
+    if (e.key === 'ArrowRight' && n < PRIMER.count) { e.preventDefault(); location.replace('#primer/' + (n + 1)); }
+    if (e.key === 'ArrowLeft' && n > 1) { e.preventDefault(); location.replace('#primer/' + (n - 1)); }
+  });
 
   // ---------- 5부 강의 자료 ----------
   // 강의 그림(54장, 약 2.3MB)은 앱을 열 때 받지 않고 5부 강을 처음 열 때 한 번만 받는다.
@@ -340,7 +481,8 @@
       out += '</ul>';
       if (!teaser) { out += timeframeTeaser(); teaser = true; } // 1부 목록 바로 뒤(2부 제목 앞)에 시간봉 가이드
     });
-    view.innerHTML = `<div class="tip">한 번에 한 강만 읽어도 됩니다. 1부 1~8강부터 시작하세요.</div>${out}${teaser ? '' : timeframeTeaser()}`;
+    const primerTip = S.primer.done ? '' : `<div class="tip"><span>캔들을 처음 보신다면 <a href="#primer/${primerResume()}">첫걸음 그림 교재(카드 ${PRIMER.count}장)</a>부터 보세요.</span></div>`;
+    view.innerHTML = `${primerTip}<div class="tip">한 번에 한 강만 읽어도 됩니다. 1부 1~8강부터 시작하세요.</div>${out}${teaser ? '' : timeframeTeaser()}`;
   }
 
   function figureHtml(name, extraCaption) {
@@ -1105,7 +1247,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=a5f0e826b1' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=a4422324e7' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
@@ -1129,11 +1271,15 @@
     const tt = $('#toast'); if (tt && tt.dataset.transient === '1' && tt.classList.contains('show')) { clearTimeout(toastTimer); tt.classList.remove('show'); tt.textContent = ''; }
     clearInterval(SIM.timer);
     document.body.classList.remove('goya-practice-route');
+    document.body.classList.toggle('primer-route', seg[0] === 'primer');
     const goyaHostEl = document.getElementById('goya-host');
     if (goyaHostEl) goyaHostEl.hidden = true;
     view.hidden = false;
     window.scrollTo(0, 0);
+    // 첫걸음 그림 교재 관문: 처음 고르기 전, 또는 "처음이에요"를 골라 아직 이수하지 않았으면 교재 말고는 열지 않는다.
+    if (seg[0] !== 'primer' && primerBlocked()) { renderPrimerGate(); view.focus({ preventScroll: true }); return; }
     switch (seg[0]) {
+      case 'primer': renderPrimer(Number(seg[1])); break;
       case 'home': renderHome(); break;
       case 'learn': renderLearn(); break;
       case 'timeframes': renderTimeframes(); break;
