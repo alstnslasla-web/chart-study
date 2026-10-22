@@ -641,10 +641,12 @@ html[data-font="XL"] .sim-rsi { height: 116px; }
 .primer-count { color: var(--ink-2); }
 .primer-count b { font-family: var(--font-display); font-weight: 400; font-size: 1.5em; color: var(--brand-deep); }
 .primer-skip { margin-top: 16px; padding-top: 6px; border-top: 1px solid var(--line); }
-.primer-skip-confirm { background: var(--brand-tint); border-radius: var(--r-md); padding: 12px 14px; }
+.primer-skip .muted { font-size: .86em; margin: 6px 2px 0; }
 .primer { display: grid; gap: 10px; }
 .primer-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.primer-pos { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.primer-pos { color: var(--ink-2); font-variant-numeric: tabular-nums; margin-left: auto; }
+.primer-skip-now { flex: none; min-height: 44px; padding: 6px 14px; border-radius: 999px; border: 2px solid var(--brand); background: var(--paper); color: var(--brand); font: inherit; font-weight: 700; font-size: .9em; cursor: pointer; }
+.primer-skip-now:active { transform: translateY(1px); }
 .primer-pos b { font-family: var(--font-display); font-weight: 400; font-size: 1.5em; color: var(--brand-deep); }
 .primer .primer-meter { height: 8px; margin: 0; }
 .primer-stage { position: relative; width: min(100%, calc((100vh - 280px) * 9 / 16)); width: min(100%, calc((100dvh - 280px) * 9 / 16)); min-width: min(100%, 260px); aspect-ratio: 9 / 16; margin: 0 auto; border-radius: var(--r-md); overflow: hidden; background: var(--paper-2); box-shadow: var(--shadow-1); display: grid; place-items: center; touch-action: pan-y; }

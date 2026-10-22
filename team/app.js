@@ -337,11 +337,8 @@
           <p class="primer-count"><b>${p.seen}</b> / ${PRIMER.count}장 봤어요</p>
           <a class="big-btn accent" href="#primer/${resume}">${p.seen ? resume + '번째 카드부터 이어 보기' : '첫 카드부터 보기'}</a>
           <div class="primer-skip">
-            <button type="button" class="linkish" data-act="primer-skip-ask" aria-expanded="false">차트를 이미 아는 분은 건너뛰기</button>
-            <div class="primer-skip-confirm" hidden>
-              <p>건너뛰면 바로 강의와 연습을 시작합니다. 교재는 홈에서 언제든 다시 볼 수 있어요.</p>
-              <button type="button" class="big-btn secondary" data-act="primer-skip">네, 건너뛸게요</button>
-            </div>
+            <button type="button" class="big-btn secondary" data-act="primer-skip">건너뛰고 바로 시작하기</button>
+            <p class="muted">건너뛰어도 본 곳까지 저장되어, 홈의 「첫걸음 그림 교재」에서 이어 볼 수 있어요.</p>
           </div>
         </section>`;
     } else {
@@ -363,11 +360,8 @@
     view.querySelectorAll('[data-act="primer-begin"]').forEach((b) => b.addEventListener('click', () => {
       S.primer.choice = 'beginner'; savePrimer(); location.hash = '#primer/' + primerResume();
     }));
-    view.querySelectorAll('[data-act="primer-skip-ask"]').forEach((b) => b.addEventListener('click', () => {
-      const box = view.querySelector('.primer-skip-confirm'); box.hidden = !box.hidden; b.setAttribute('aria-expanded', String(!box.hidden));
-    }));
     view.querySelectorAll('[data-act="primer-skip"]').forEach((b) => b.addEventListener('click', () => {
-      S.primer.choice = 'skip'; savePrimer(); toast('건너뛰었어요', '첫걸음 그림 교재는 홈에서 언제든 볼 수 있어요.'); route();
+      S.primer.choice = 'skip'; savePrimer(); toast('건너뛰었어요', S.primer.seen ? '본 곳까지 저장되어 있어요. 홈의 「첫걸음 그림 교재」에서 이어 볼 수 있어요.' : '첫걸음 그림 교재는 홈에서 언제든 볼 수 있어요.'); route();
     }));
   }
   function renderPrimer(n) {
@@ -382,7 +376,7 @@
       return `<li><button type="button" class="primer-toc-item${n >= a && n <= b ? ' here' : ''}" data-goto="${a}" ${locked ? 'disabled' : ''}><span class="t">${esc(name)}</span><span class="s">${a}~${b}번 카드 · ${locked ? '아직 열리지 않았어요' : read >= b - a + 1 ? '다 봤어요' : `${read}/${b - a + 1}장 봄`}</span></button></li>`;
     }).join('');
     view.innerHTML = `<div class="primer">
-        <div class="primer-head"><span class="badge">${esc(partName)}</span><span class="primer-pos"><b>${n}</b> / ${PRIMER.count}</span></div>
+        <div class="primer-head"><span class="badge">${esc(partName)}</span><span class="primer-pos"><b>${n}</b> / ${PRIMER.count}</span>${strict ? '<button type="button" class="primer-skip-now" data-act="primer-skip-now">건너뛰기 ›</button>' : ''}</div>
         <div class="primer-meter" aria-hidden="true"><i style="width:${(p.seen / PRIMER.count * 100).toFixed(1)}%"></i></div>
         <div class="primer-stage">
           <img class="primer-card" alt="첫걸음 그림 교재 ${n}번째 카드 · ${esc(partName)}" hidden>
@@ -408,6 +402,10 @@
       const first = !p.done; p.done = true; savePrimer();
       if (first) toast('첫걸음 교재를 다 봤어요', '이제 강의·문제·연습이 열렸어요. 1부 1강부터 천천히 시작하세요.');
       location.hash = '#home';
+    });
+    const skipNow = view.querySelector('[data-act="primer-skip-now"]');
+    if (skipNow) skipNow.addEventListener('click', () => { // 2026-10-22 사용자: "처음이에요도 중간에 언제든지 건너뛰기"
+      p.choice = 'skip'; savePrimer(); toast('건너뛰었어요', '본 곳까지 저장되어 있어요. 홈의 「첫걸음 그림 교재」에서 이어 볼 수 있어요.'); location.hash = '#home';
     });
     const tocBox = view.querySelector('.primer-toc');
     view.querySelectorAll('[data-act="primer-toc"]').forEach((b) => b.addEventListener('click', () => { tocBox.hidden = false; tocBox.scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
@@ -1247,7 +1245,7 @@
     document.body.classList.add('goya-practice-route');
     const host = goyaHost();
     if (!host.querySelector('iframe')) {
-      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=a4422324e7' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
+      host.innerHTML = '<div class="card"><h2>실제 차트 재생 연습</h2><p>실제 5분봉 위에 1시간 보관 지표와 신호를 겹쳐 보며 직접 주문합니다.</p><a class="big-btn" href="goya/manual-replay.html' + (window.cbFrameHash || '') + '">실제 차트 재생 연습 열기 →</a></div><iframe id="goya-practice-frame" title="실제 기록 지표 모의연습" src="goya/index.html?embed=1&font=' + encodeURIComponent(S.settings.font || 'L') + '&v=f82f68d87d' + (window.cbFrameHash || '') + '" style="width:100%;min-height:1000px;border:0;display:block" loading="eager"></iframe><p class="goya-example-link"><a href="#sim-example">기존 가상 차트 연습</a> · <a href="#home">배움터 홈</a></p>';
     }
     view.innerHTML = '';
     view.hidden = true;
